@@ -19,7 +19,7 @@ website:
     
 format:
   html:
-    theme: vapor
+    theme: minty
     toc: false
 
 editor:
