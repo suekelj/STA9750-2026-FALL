@@ -1,7 +1,490 @@
+---
+title: "mp01.qmd"
 
-  ---
-  title: "Mini-Project Placeholder"
-  ---
+code-fold: true
+code-summary: "Show All Code"
+execute:
+  echo: false
+---
+
+``` {r}
+
+#' Acquire Netflix What We Watched Reports
+#' 
+#' This function will acquire and standardize all data for MP#01
+#' from Netflix. Because Netflix hosts the data files behind a CDN, we
+#' are accessing the release pages and automatically extracting links to the
+#' relevant files (with CDN hash). 
+#' 
+#' After import, files are stacked vertically and some basic cleaning is
+#' performed. 
+load_netflix_data <- function(){
+  # Note to students: Make sure you have installed the tidyverse and fs packages
+  #                   before beginning this assignment. If you aren't sure,
+  #                   simply run `library(tidyverse)` at your R Console and, if
+  #                   you don't see an error message, `tidyverse` has been 
+  #                   installed. (Same for `fs`) If you still need to install
+  #                   either package, use the `install.packages` function as 
+  #                   demonstrated in class.
+  library(tidyverse)
+  library(rvest)
+  library(readxl)
+  library(fs)
   
-  This is a placeholder for STA9750 Mini-Project 1. Check back soon for more!
+  data_dir <- path("data", "mp01")
+    
+  if(!dir_exists(data_dir)){
+    dir_create(data_dir, showWarnings=FALSE, recurse=TRUE)
+  }
   
+  NETFLIX_URLS <- list(
+    `2023H1` = "https://about.netflix.com/news/what-we-watched-a-netflix-engagement-report",
+    `2023H2` = "https://about.netflix.com/news/what-we-watched-the-second-half-of-2023",
+    `2024H1` = "https://about.netflix.com/news/what-we-watched-the-first-half-of-2024",
+    `2024H2` = "https://about.netflix.com/news/what-we-watched-the-second-half-of-2024",
+    `2025H1` = "https://about.netflix.com/news/what-we-watched-the-first-half-of-2025",
+    `2025H2` = "https://about.netflix.com/news/what-we-watched-the-second-half-of-2025",
+    `2026H1` = "https://about.netflix.com/news/what-we-watched-the-first-half-of-2026"
+  )
+  
+  download_if_needed <- function(url, local){
+    if(!file_exists(local)){
+      download.file(url, local, quiet = TRUE, mode = "wb")
+    }
+    
+    return(local)
+  }
+    
+  NETFLIX_URLS |> 
+    map(read_html) |> 
+    map(html_element, xpath = "//a[contains(@href, '.xlsx')]") |> 
+    map_chr(html_attr, "href") |> 
+    enframe("period", "url") |> 
+   mutate(path = path(data_dir, paste0(period, ".xlsx")), 
+          path = map2(url, path, download_if_needed), 
+          data = map(path, read_excel, skip=3, na="*"), 
+          data = map(data, \(x) x |> mutate(`Release Date` = as.Date(`Release Date`)))) |>
+    unnest(data) |> 
+    select(-url, -path) |> 
+    mutate(year=str_sub(period, 1, 4), 
+           half=str_sub(period, start=6), 
+           period_start = make_date(year, if_else(half==1, 1, 7), 1), 
+           period_end = make_date(year, if_else(half==1, 7, 12), if_else(half==1, 30, 31))) |> 
+    filter(!is.na(`Hours Viewed`)) |> 
+    mutate(live_event = !is.na(Runtime) & str_detect(Runtime, "\\d+:\\d+\\*"), 
+           clean_time = str_remove(Runtime, fixed("*")),
+           Runtime = 60 * hour(hm(clean_time)) + minute(hm(clean_time))) |>
+    select(-clean_time) |>
+    mutate(Runtime = coalesce(Runtime, mean(Runtime, na.rm=TRUE)), 
+           .by=Title, 
+           Title = stringi::stri_trans_general(Title, "Latin-ASCII"),
+           Title = str_remove(Title, " // .*"), 
+           Title = str_remove(Title, "[^[:ascii:]].*"), 
+           Title = str_trim(Title)) |>
+    filter_out(Title == "") |>
+    select(year, 
+           period, 
+           period_start, 
+           period_end, 
+           Title, 
+           -half, 
+           Runtime, 
+           Views, 
+           `Hours Viewed`, 
+           `Release Date`,
+           `Available Globally?`, 
+           live_event)
+}
+
+NETFLIX_DATA <- load_netflix_data()
+```
+
+```{r}
+
+# task 2, rename column names
+NETFLIX_DATA <- load_netflix_data() |> 
+  rename(hours_viewed = `Hours Viewed`,
+         release_date = `Release Date`,
+         available_globally = `Available Globally?`)
+
+
+library(scales)
+
+```
+
+
+
+```{r}
+
+# task 3 - year into int, available_globally into boolean
+NETFLIX_DATA <- NETFLIX_DATA |> 
+  mutate(year = as.integer(year), available_globally =available_globally== "Yes") 
+#glimpse(NETFLIX_DATA)
+```
+
+
+```{r}
+
+# task 4 - Initial EDA Pass
+summary(NETFLIX_DATA)
+library(skimr)
+skim(NETFLIX_DATA)
+
+```
+
+
+
+1. The date range covered by this data set is 2023-01-01 to 2026-07-30
+``` {r}
+
+NETFLIX_DATA |> summarize(.by=period_start) |> slice_min(period_start)
+NETFLIX_DATA |> summarize(.by=period_end) |> slice_max(period_end)
+```
+
+2. How many different shows and movies are covered in this data set?
+```{r}
+
+NETFLIX_DATA |> tally() # 61892
+NETFLIX_DATA |> distinct() |> tally()  #61852
+```
+
+3. 
+```{r}
+
+NETFLIX_DATA |> 
+  filter(str_detect(Title, "Bridgerton")) |> 
+  select(hours_viewed) |> 
+  sum() |> comma()
+```
+
+
+4. 
+```{r}
+
+is_stranger_things <- NETFLIX_DATA |> filter(str_detect(Title, "Stranger Things"))
+is_stranger_things |> filter_out(str_detect(Title, "Beyond")) |> 
+  filter_out(str_detect(Title, "Tales")) |> 
+  filter_out(str_detect(Title,"Fireplace")) |> select(hours_viewed) |> sum() |> comma()
+```
+
+
+
+5. 0.008089282
+```{r}
+
+#5 What percentage of total watch time was spent on the Top 10 titles of 2026H1?
+# total watch time of Top 10 title of 2026H1 / total of all watch time ?????
+# top ten titles of 2026 h1, watch time of top ten, 
+#top ten implies top viewed
+# total watch time from 2023H1 to 2026H1
+
+library(dplyr)
+
+top_ten <- NETFLIX_DATA |> filter(period == "2026H1") |> 
+  slice_max(order_by=Views, n=10) |> select(Title, hours_viewed)
+
+sum_top_ten <- top_ten |> select(hours_viewed) |> sum()
+total_watch_time <- NETFLIX_DATA |> select(hours_viewed) |> sum()
+
+percent(sum_top_ten / total_watch_time, accuracy=.0001)
+
+```
+
+
+```{r}
+
+
+#6. What fraction of Netflix’s catalog is globally available? 
+#(Answer this both by title and weighted by hours viewed)
+# df of netflix content that's available globally
+avail_globally <- NETFLIX_DATA |> filter(available_globally == TRUE)
+# fraction of netflix's catalog available globally - by title (count)
+count(avail_globally) / count(NETFLIX_DATA)
+#print((avail_globally), n=10) # test
+
+
+# fraction of netflix catalog available globally, by hours viewed
+comma(sum(select(avail_globally,hours_viewed)) / sum(select(NETFLIX_DATA,hours_viewed)), accuracy=.0001)
+```
+
+
+
+
+#part 6
+
+
+``` {r}
+
+library(gt)
+
+# 1. What was the top show (by total hours viewed) in each period and 
+# what fraction of total viewership did it capture?
+# using total hours viewed instead of Views because 2023H1 data 
+# didn't have a column for Views, so R read that column as NA. 
+# doing any math to that column would leave an entire column of NA 
+# for 2023H1. also, hours_viewed in my opion may be more informative than 
+# total views because i think hours viewed takes into account shows 
+# that are dropped/ shows people stop watching
+
+# total hours viewed
+tot <- NETFLIX_DATA |> summarize(sum(hours_viewed))
+#tot
+
+# top show by total hours viewed in each period
+NETFLIX_DATA |> select(Title,period, hours_viewed) |>
+  group_by(period) |> 
+  slice_max(hours_viewed) |>
+  # fraction of total views it captured
+  mutate((hours_viewed/tot)) |> 
+  rename(fraction_of_total_views = `sum(hours_viewed)`) |>
+  mutate(hours_viewed=comma(hours_viewed),
+         fraction_of_total_views=comma(fraction_of_total_views,accuracy=.00001)) |>
+  ungroup() |> 
+  gt() |> 
+  tab_header(title="top shows (by total hours viewed)", 
+             subtitle="top shows in each period and the fraction of total viewership they captured") |>
+  tab_footnote(footnote="calculated by dividing each period's 
+               hours_viewed by the total hours_viewed of the dataset (511,590,500,000)",
+               locations=cells_column_labels(columns = fraction_of_total_views))
+
+```
+
+#2 
+```{r}
+
+#2 How has Netflix’s catalog changed in size over the periods for which we have questions? 
+#You should consider both the number of titles and the total runtime of content.
+
+# number of title
+NETFLIX_DATA |> select(period,Title) |> 
+  group_by(period) |> 
+  summarize(total_titles = n() |> comma()) |> 
+  gt() |> 
+  tab_header(title="Number of Titles by Period")
+
+# total content runtime
+NETFLIX_DATA |> select(period,Title,Runtime) |> 
+  group_by(period) |> 
+  summarize(total_runtime = sum(Runtime, na.rm=TRUE)|> comma())  |> 
+  gt() |> tab_header(title="Total Content Runtime by Period")
+```
+
+
+```{r}
+
+#3 Which shows have had the most consistently high viewership across all periods? 
+#These shows are likely to be ‘staples’ that viewers fall back ... e.g., re-runs of Friends.
+
+# compute the average veiwership, the minimum viewership, 
+#and the standard deviation of viewership across different periods 
+#and develop a filter using some combination of these quantities.
+
+# period_stats a table of the statistics (mean, standard deviation, and min views) of each period
+#the minimum view is 100000 for all of the periods, so 
+# assuming that netflix only tracks and records content that have at least 100000 views
+# since the minimum is the same across all periods, i didn't use minimum for 
+# this analysis, and instead focussde only on the mean and standard deviaions
+period_stats <- NETFLIX_DATA |> group_by(period) |> 
+  summarize(period_mean = mean(as.numeric(Views), na.rm=TRUE), 
+            period_sd=sd(as.numeric(Views), na.rm=TRUE),
+            period_min=min(as.numeric(Views), na.rm=TRUE))
+period_stats
+
+  # shows_higher_than_avg are the shows with viewship higher than that period's average
+shows_higher_than_avg <- inner_join(period_stats, NETFLIX_DATA, join_by(period == period)) |> 
+  filter_out(is.na(Views)) |> 
+  select(period, Title, period_mean, Views) |>
+  filter((Views > period_mean)) |> 
+  mutate(Views=comma(Views), period_mean=comma(period_mean)) |> gt() |>
+  tab_header(title="Higher Than Average Shows") |>
+  tab_options(
+    container.height = px(300),
+    container.overflow.y = TRUE 
+  )
+shows_higher_than_avg
+
+# stdev_multiplier - adjust the number of standard deviations to move away from mean
+# i wanted to capture the titles with the HIGHEST views, so i used the mean (of each period)
+# and added the standard deviation (of the corresponding period) to try to capture the 
+# top 13 percentile? https://lesn.appstate.edu/olson/normal_curve.htm
+# i kept increading the the percentiles to narrow the amount of title further
+# by using a constant (which i am calling multiplier): (mean + (multiplier*standard deviation))
+# I settled on a constant (multiplier) of 6 ((6 x standard deviation of each period) + mean)
+stdev_multiplier <- 6
+period_standard_devs <- period_stats |> select(period, period_mean, period_sd) |> 
+  mutate(stdev_multiplied = period_mean + (stdev_multiplier * period_sd))
+#period_standard_devs
+
+# shows with viewership greather than the period's average + multiplier * the period's stdev
+# default sorted by period.
+inner_join(period_standard_devs, NETFLIX_DATA, join_by(period == period)) |> 
+  filter_out(is.na(Views)) |> mutate(mean_plus_stdev_multiplied = period_mean+stdev_multiplied) |> 
+  select(period, Title, Views, period_mean, stdev_multiplied, mean_plus_stdev_multiplied) |> 
+  filter((Views > stdev_multiplied)) |>
+  mutate(Views=comma(Views), 
+         period_mean=comma(period_mean),
+         stdev_multiplied=comma(stdev_multiplied), 
+         mean_plus_stdev_multiplied=comma(mean_plus_stdev_multiplied)) |>
+  gt() |> 
+  tab_header(title="Views > Mean + (Multiplier * Standard Deviation)",
+             subtitle="shows with viewership greater than the period's average + multiplier * the period's stdev") |>
+  tab_footnote(footnote="This is the number that each title's View count is being compared to. 
+               This number varies between periods. 
+               It's the sum of the period's standard deviation times 6, and the period's mean.",
+               locations = cells_column_labels(columns = mean_plus_stdev_multiplied)) |>
+  tab_options(
+    container.height = px(300), 
+    container.overflow.y = TRUE  
+  )
+
+# results are surprising because i expected to see friends, while there are other content
+# here that i was not expecting to see. it's possible i did something wrong
+# but the presence of stranger tigs , squid games, and bridgerton 
+# slightly assuages my fears. in fact, some seasons of these shows appear on the list more than once
+
+
+
+```
+
+
+
+```{r}
+#4 Within each period, what fraction of time was spent on ‘shows’ vs movies?
+#hours viewed of shows / total hours viewed
+
+#Length: anything over 4-ish hours is almost certainly a TV show, not a movie
+#“Season”: if a title has “Season” in it, it is almost certainly a TV show
+
+# total hours viewed of all content
+total_hours_viewed <- NETFLIX_DATA |> summarize(sum(hours_viewed))
+#total_hours_viewed
+
+# 4 hours = 240 minutes
+# filters:
+# these filter out possible shows: content with < 240min runtime, or title contains "season"
+shows <- NETFLIX_DATA |> 
+  filter(Runtime >= 240 | str_detect(Title, "Season")) |> 
+  group_by(period) |> 
+  summarize(shows_hours_viewed=sum(hours_viewed)) |> mutate(total_hours_viewed) 
+shows |> 
+  mutate(shows_hours_viewed = comma(shows_hours_viewed)) |> 
+  select(-`sum(hours_viewed)`)|>
+  gt() |> tab_header(title="Total Hours Viewed for Shows, by Period")
+
+movies <- NETFLIX_DATA |> filter(Runtime < 240) |> group_by(period) |> 
+  summarize(movies_hours_viewed = sum(hours_viewed)) |> mutate(total_hours_viewed)
+movies |> 
+  mutate(movies_hours_viewed = comma(movies_hours_viewed)) |> 
+  select(-`sum(hours_viewed)`) |>
+  gt()|> tab_header(title="Total Hours Viewed for Movies, by Period")
+
+#what fraction of time was spent on ‘shows’ vs movies?
+shows |> mutate(shows_fraction = shows_hours_viewed / `sum(hours_viewed)`) |> 
+  select(-`sum(hours_viewed)`) |> 
+  mutate(shows_hours_viewed = comma(shows_hours_viewed)) |> 
+  mutate(shows_fraction = comma(shows_fraction, accuracy=.0001)) |>
+  gt() |> tab_header(title="Fraction of Time Spent on Shows") |>
+  tab_footnote(footnote="shows_fraction was calculated by hours viewed of shows / total hours viewed") 
+movies |> mutate(movies_fraction = movies_hours_viewed / `sum(hours_viewed)`) |> 
+  select(-`sum(hours_viewed)`) |> 
+  mutate(movies_hours_viewed = comma(movies_hours_viewed)) |> 
+  mutate(movies_fraction = comma(movies_fraction, accuracy=.0001)) |>
+  gt() |>  tab_header(title="Fraction of Time Spent on Movies") |>
+  tab_footnote(footnote="movies_fraction was calculated by hours viewed of movies / total hours viewed")
+
+
+# There is a high possibility that not all shows were captured in the filter above, 
+# only 44210 shows and 14556 movies (58,766 out of 61882 rows) were filtered.
+
+
+```
+
+
+
+```{r}
+
+# 5 How does the performance of live events compare to pre-taped content? 
+
+#1375241
+avg <-NETFLIX_DATA|>filter(!is.na(Views))|>summarize(mean(Views))
+#avg
+
+#Does the average live event draw more viewership than an average piece of pre-taped content? 
+# Percent difference = (avg live − avg taped) ÷ avg taped × 100
+
+# means of taped and live content
+live_ <- NETFLIX_DATA |> 
+  filter(live_event == TRUE) |> 
+  summarize(live_mean = mean(Views,na.rm=TRUE))
+live_ |> mutate(live_mean = comma(live_mean)) |> gt() |> tab_header(title="Mean of Live Content")
+taped_ <- NETFLIX_DATA |> 
+  filter(live_event == FALSE) |> 
+  summarize(taped_mean = mean(Views,na.rm=TRUE))
+taped_ |> mutate(taped_mean = comma(taped_mean)) |> gt()|> tab_header(title="Mean of Pre-taped Content")
+
+# percent difference of live vs taped is 11.2% higher for live. surprising 
+# because there not much variety in types of live events compared to pre taped
+# but the higher views for live could be because there are less live events
+# and the taped content could have outlier content
+# that have really high views (or low views) that skew the data. 
+live_|> mutate(taped_) |>
+  mutate(percent_diff = (live_mean - taped_) / taped_ ) |> 
+  mutate(taped_mean = comma(taped_mean), 
+         live_mean=comma(live_mean),
+         percent_difference=comma(percent_diff$taped_mean,accuracy=.001)) |>
+  select(-percent_diff)|>
+  gt() |>
+  tab_header(title="Percent Difference of Live vs Taped Content") |>
+  tab_footnote(footnote="")
+
+#How about a ‘top tier’ live event vs ‘top tier’ pre-taped content?
+# i interpreted 'top tier' to mean titles that have viewerships higher than avg
+
+#Does a ‘top tier’ live event draw more viewership than a ‘top tier’ pre-taped content?
+# average viewership of live top tier content
+
+        #top tier means of taped and live content
+live_top_tier <- NETFLIX_DATA |> filter(live_event == TRUE) |>
+  select(Title, Views) |> 
+  mutate(avg) |>
+  filter(Views > `mean(Views)`) |> summarize(live_top_mean = mean(Views,na.rm=TRUE))
+# format the table and add commas
+live_top_tier |> mutate(live_top_mean = comma(live_top_mean)) |> gt() |>
+  tab_header(title="Top Tier Live Content") |>
+  tab_footnote(footnote="")
+
+taped_top_tier <- NETFLIX_DATA |> filter(live_event == FALSE) |>
+  select(Title, Views) |>
+  mutate(avg) |> 
+  filter(Views > `mean(Views)`) |> 
+  summarize(taped_top_mean = mean(Views,na.rm=TRUE))
+# format the table and add commas
+taped_top_tier|> mutate(taped_top_mean = comma(taped_top_mean)) |> gt() |>
+  tab_header(title="Top Tier Pre-taped Content") |>
+  tab_footnote(footnote="")
+
+# top tier live content has 19.8% less views than top tier taped content
+# this is what i had expected with the previous q, so i guess it could be 
+# outliers that skewed the data
+live_top_tier|> mutate(taped_top_tier) |>
+  mutate(top_tier_percent_diff = (live_top_mean - taped_top_tier) / taped_top_tier ) |>
+  mutate(taped_top_mean = comma(taped_top_mean), 
+         live_top_mean = comma(live_top_mean),
+         top_tier_percent_difference = comma(top_tier_percent_diff$taped_top_mean,accuracy=.001))|>
+  select(-top_tier_percent_diff)|>
+  gt() |> 
+  tab_header(title="Top Tier Live vs Pre-taped Content") |>
+  tab_footnote(footnote="")
+
+
+
+
+```
+
+
+
+::: {.callout-note title="AI Usage Statement" collapse="true"}
+
+Claude AI was used to help figure out what formulas are appropriate to use for Part 6: Questions 4 and 5.
+
+:::
