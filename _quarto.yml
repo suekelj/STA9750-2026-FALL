@@ -11,9 +11,6 @@ website:
     background: primary
     search: false
     left:
-      - text: "Home"
-        href: index.qmd
-      - about.qmd
       - mp01.qmd
 
 format:
