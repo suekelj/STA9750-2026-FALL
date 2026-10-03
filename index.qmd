@@ -3,3 +3,11 @@ title: "title"
 ---
 
 [mp01](https://suekelj.github.io/STA9750-2026-FALL/mp01.html)
+
+
+```{r}
+#| include: false
+1+1
+```
+--------------
+Last Updated: `r format(Sys.time(), "%A %m %d, %Y at %H:%M%p")`
