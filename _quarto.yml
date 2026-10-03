@@ -15,7 +15,7 @@ website:
         href: index.qmd
       - about.qmd
       - mp01.qmd
-      
+
 format:
   html:
     theme: minty
