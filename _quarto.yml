@@ -16,7 +16,6 @@ website:
       - about.qmd
       - mp01.qmd
       
-    
 format:
   html:
     theme: minty
