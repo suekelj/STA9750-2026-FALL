@@ -3,11 +3,13 @@ title: "mp01.qmd"
 
 code-fold: true
 code-summary: "Show All Code"
-execute:
-  echo: false
+
 ---
 
+
+# Data Acquisition
 ``` {r}
+#| output: false
 
 #' Acquire Netflix What We Watched Reports
 #' 
@@ -99,8 +101,10 @@ load_netflix_data <- function(){
 NETFLIX_DATA <- load_netflix_data()
 ```
 
-```{r}
 
+# Data Cleaning and Preparation
+```{r}
+#| output: false
 # task 2, rename column names
 NETFLIX_DATA <- load_netflix_data() |> 
   rename(hours_viewed = `Hours Viewed`,
@@ -119,7 +123,7 @@ library(scales)
 # task 3 - year into int, available_globally into boolean
 NETFLIX_DATA <- NETFLIX_DATA |> 
   mutate(year = as.integer(year), available_globally =available_globally== "Yes") 
-#glimpse(NETFLIX_DATA)
+glimpse(NETFLIX_DATA)
 ```
 
 
@@ -132,51 +136,63 @@ skim(NETFLIX_DATA)
 
 ```
 
+#Task 5: Exploratory Questions - Inline Values
 
+1. 
 
-1. The date range covered by this data set is 2023-01-01 to 2026-07-30
 ``` {r}
-
-NETFLIX_DATA |> summarize(.by=period_start) |> slice_min(period_start)
-NETFLIX_DATA |> summarize(.by=period_end) |> slice_max(period_end)
+data_start <- NETFLIX_DATA |> summarize(.by=period_start) |> slice_min(period_start)
+data_end <- NETFLIX_DATA |> summarize(.by=period_end) |> slice_max(period_end)
 ```
+The date range covered by this data set is `{r} data_start` to `{r} data_end`.\
+To find the start date, I used the summarize() method, sorted by period_start, and used slice_min() to find the minimum date. 
+I used the same method to find the period_end date, but instead I used slice_max().
 
-2. How many different shows and movies are covered in this data set?
+To check, I used skim() from the skimr package. 
+
+
+
+
+2. 
 ```{r}
-
-NETFLIX_DATA |> tally() # 61892
-NETFLIX_DATA |> distinct() |> tally()  #61852
+non_distinct_shows <- NETFLIX_DATA |> tally() # 61892
+distinct_shows <- NETFLIX_DATA |> distinct() |> tally()  #61852
 ```
+There are `{r} distinct_shows` different shows and movies in this data set. Originally, I had only used the tally() method which gave me `{r} non_distinct_shows` rows. But I wondered if it was possible for there to be duplicates, so I used distinct(), which lead to `{r} distinct_shows` rows.
+
+
+
+
 
 3. 
 ```{r}
+#| output: false
 
-NETFLIX_DATA |> 
+bridgerton_hours <- NETFLIX_DATA |> 
   filter(str_detect(Title, "Bridgerton")) |> 
   select(hours_viewed) |> 
   sum() |> comma()
 ```
+`{r} bridgerton_hours` hours were spent watching content from the Bridgerton universe. This includes three seasons of the TV series, the Afterparty, and Queen Charlotte. The amount of hours includes 
+he dataset has repeats of each season and the other spinoffs ___________
+There are repeats throughout the dataset and throughout the different period represented in the dataset and I think it is due to the fact that Bridgerton is still popular even after _________ 
+
 
 
 4. 
 ```{r}
-
 is_stranger_things <- NETFLIX_DATA |> filter(str_detect(Title, "Stranger Things"))
-is_stranger_things |> filter_out(str_detect(Title, "Beyond")) |> 
+st_hours <- is_stranger_things |> filter_out(str_detect(Title, "Beyond")) |> 
   filter_out(str_detect(Title, "Tales")) |> 
   filter_out(str_detect(Title,"Fireplace")) |> select(hours_viewed) |> sum() |> comma()
 ```
+`{r} st_hours` hours were spent watching the five seasons Stranger Things. This number excludes spinoffs and Stranger Things: Fireplace. This is a high number. However, just like Bridgerton above, the repeat listings by Netflix is included in this number. Stranger Things is still widely watched up to and including 2026H1.
 
 
 
-5. 0.008089282
+
+5.
 ```{r}
-
-#5 What percentage of total watch time was spent on the Top 10 titles of 2026H1?
-# total watch time of Top 10 title of 2026H1 / total of all watch time ?????
-# top ten titles of 2026 h1, watch time of top ten, 
-#top ten implies top viewed
-# total watch time from 2023H1 to 2026H1
 
 library(dplyr)
 
@@ -186,27 +202,35 @@ top_ten <- NETFLIX_DATA |> filter(period == "2026H1") |>
 sum_top_ten <- top_ten |> select(hours_viewed) |> sum()
 total_watch_time <- NETFLIX_DATA |> select(hours_viewed) |> sum()
 
-percent(sum_top_ten / total_watch_time, accuracy=.0001)
-
+watch_time_percent <- percent(sum_top_ten / total_watch_time, accuracy=.0001)
+watch_time_percent
 ```
+`{r} watch_time_percent` of total watch time was spent on the Top 10 title of 2026H1.
+I interpreted Top 10 titles to mean the top ten most viewed, so for this, I had to create a filter for just 2026H1 content, then used slice_max() to sort the Views and limited the output to just ten. Then I had to find the TOTAL watch time of all content from 2023H1 to 2026H1.
+
+Finally I used the total watch time of Top 10 title of 2026H1 and divided that by the total watch time of all of the content.
 
 
+
+
+6. 
 ```{r}
-
-
 #6. What fraction of Netflix’s catalog is globally available? 
 #(Answer this both by title and weighted by hours viewed)
 # df of netflix content that's available globally
 avail_globally <- NETFLIX_DATA |> filter(available_globally == TRUE)
-# fraction of netflix's catalog available globally - by title (count)
-count(avail_globally) / count(NETFLIX_DATA)
-#print((avail_globally), n=10) # test
 
+# fraction of netflix's catalog available globally - by title (count)
+global_by_count <- count(avail_globally) / count(NETFLIX_DATA)
+#print((avail_globally), n=10) # test
+global_by_count
 
 # fraction of netflix catalog available globally, by hours viewed
-comma(sum(select(avail_globally,hours_viewed)) / sum(select(NETFLIX_DATA,hours_viewed)), accuracy=.0001)
+global_by_hours_viewed <- 
+  comma(sum(select(avail_globally,hours_viewed)) / sum(select(NETFLIX_DATA,hours_viewed)), accuracy=.0001)
+global_by_hours_viewed
 ```
-
+The fraction of Netflix's catalog that is globally available is `{r} global_by_count` by title, and `{r} global_by_hours_viewed` by hours viewed.
 
 
 
@@ -217,37 +241,62 @@ comma(sum(select(avail_globally,hours_viewed)) / sum(select(NETFLIX_DATA,hours_v
 
 library(gt)
 
-# 1. What was the top show (by total hours viewed) in each period and 
-# what fraction of total viewership did it capture?
-# using total hours viewed instead of Views because 2023H1 data 
-# didn't have a column for Views, so R read that column as NA. 
-# doing any math to that column would leave an entire column of NA 
-# for 2023H1. also, hours_viewed in my opion may be more informative than 
-# total views because i think hours viewed takes into account shows 
-# that are dropped/ shows people stop watching
+
+total_views <- NETFLIX_DATA |> summarize(sum(Views, na.rm = TRUE))
+#total_views
+
+# top show by total viewed in each period
+NETFLIX_DATA |> select(Title, period, Views) |> drop_na() |>
+  group_by(period) |> slice_max(Views) |>
+  # fraction of total views it captured
+  mutate((Views/total_views)) |> 
+  rename(fraction_total_views = `sum(Views, na.rm = TRUE)`) |>
+  mutate(Views=comma(Views),
+         fraction_total_views=percent(fraction_total_views,accuracy=.0001)) |>
+  ungroup() |> 
+  gt() |> 
+  tab_header(title="Top Shows (by Total Viewership)", 
+             subtitle="Top shows in each period and the fraction of total viewership they captured") |>
+  tab_footnote(footnote="calculated by dividing each period's 
+               views by the total views of the dataset (60,089,800,000)",
+               locations=cells_column_labels(columns = fraction_total_views))
+
 
 # total hours viewed
-tot <- NETFLIX_DATA |> summarize(sum(hours_viewed))
-#tot
+tot_hours <- NETFLIX_DATA |> summarize(sum(hours_viewed))
+#tot_hours
 
 # top show by total hours viewed in each period
 NETFLIX_DATA |> select(Title,period, hours_viewed) |>
   group_by(period) |> 
   slice_max(hours_viewed) |>
   # fraction of total views it captured
-  mutate((hours_viewed/tot)) |> 
-  rename(fraction_of_total_views = `sum(hours_viewed)`) |>
+  mutate((hours_viewed/tot_hours)) |> 
+  rename(fraction_total_hrs_views = `sum(hours_viewed)`) |>
   mutate(hours_viewed=comma(hours_viewed),
-         fraction_of_total_views=comma(fraction_of_total_views,accuracy=.00001)) |>
+         fraction_total_hrs_views=percent(fraction_total_hrs_views,accuracy=.0001)) |>
+  rename(`Hours Viewed` = hours_viewed, 
+         `Fraction of Total Hours Viewed` = fraction_total_hrs_views) |>
   ungroup() |> 
   gt() |> 
   tab_header(title="top shows (by total hours viewed)", 
              subtitle="top shows in each period and the fraction of total viewership they captured") |>
   tab_footnote(footnote="calculated by dividing each period's 
                hours_viewed by the total hours_viewed of the dataset (511,590,500,000)",
-               locations=cells_column_labels(columns = fraction_of_total_views))
+               locations=cells_column_labels(columns = `Fraction of Total Hours Viewed`))
 
 ```
+The first table is the top shows in each period by views and the fraction of total viewership it captured.
+The 2023H1 dataset didn't have a Views column, so the tables I've generated will only reflect 2023H2 to 2026H1. 
+
+I also made another table using hours_viewed as the metric instead, to see if there was a significant difference and I thought it would be nice to include 2023H1 to analyze. 
+
+In my opinion, hours_viewed may be more informative than total views because Views seems to act more like a ___________, while hours_viewed takes into account content that are dropped as it shows how long people sit through the show/movie.
+
+
+
+
+
 
 #2 
 ```{r}
@@ -261,29 +310,31 @@ NETFLIX_DATA |> select(period,Title) |>
   summarize(total_titles = n() |> comma()) |> 
   gt() |> 
   tab_header(title="Number of Titles by Period")
-
+ 
 # total content runtime
 NETFLIX_DATA |> select(period,Title,Runtime) |> 
   group_by(period) |> 
   summarize(total_runtime = sum(Runtime, na.rm=TRUE)|> comma())  |> 
   gt() |> tab_header(title="Total Content Runtime by Period")
+
+
+#content runtime is increasing while number of title by period is descreasing.
+
 ```
 
 
+
+# 3
 ```{r}
 
 #3 Which shows have had the most consistently high viewership across all periods? 
 #These shows are likely to be ‘staples’ that viewers fall back ... e.g., re-runs of Friends.
 
-# compute the average veiwership, the minimum viewership, 
+# compute the average viewership, the minimum viewership, 
 #and the standard deviation of viewership across different periods 
 #and develop a filter using some combination of these quantities.
 
 # period_stats a table of the statistics (mean, standard deviation, and min views) of each period
-#the minimum view is 100000 for all of the periods, so 
-# assuming that netflix only tracks and records content that have at least 100000 views
-# since the minimum is the same across all periods, i didn't use minimum for 
-# this analysis, and instead focussde only on the mean and standard deviaions
 period_stats <- NETFLIX_DATA |> group_by(period) |> 
   summarize(period_mean = mean(as.numeric(Views), na.rm=TRUE), 
             period_sd=sd(as.numeric(Views), na.rm=TRUE),
@@ -304,12 +355,6 @@ shows_higher_than_avg <- inner_join(period_stats, NETFLIX_DATA, join_by(period =
 shows_higher_than_avg
 
 # stdev_multiplier - adjust the number of standard deviations to move away from mean
-# i wanted to capture the titles with the HIGHEST views, so i used the mean (of each period)
-# and added the standard deviation (of the corresponding period) to try to capture the 
-# top 13 percentile? https://lesn.appstate.edu/olson/normal_curve.htm
-# i kept increading the the percentiles to narrow the amount of title further
-# by using a constant (which i am calling multiplier): (mean + (multiplier*standard deviation))
-# I settled on a constant (multiplier) of 6 ((6 x standard deviation of each period) + mean)
 stdev_multiplier <- 6
 period_standard_devs <- period_stats |> select(period, period_mean, period_sd) |> 
   mutate(stdev_multiplied = period_mean + (stdev_multiplier * period_sd))
@@ -337,14 +382,23 @@ inner_join(period_standard_devs, NETFLIX_DATA, join_by(period == period)) |>
     container.overflow.y = TRUE  
   )
 
-# results are surprising because i expected to see friends, while there are other content
-# here that i was not expecting to see. it's possible i did something wrong
-# but the presence of stranger tigs , squid games, and bridgerton 
-# slightly assuages my fears. in fact, some seasons of these shows appear on the list more than once
-
-
 
 ```
+Which shows have had the most consistently high viewership across all periods? 
+These shows are likely to be ‘staples’ that viewers fall back ... e.g., re-runs of Friends.
+
+The 3rd and 4th tables are the list of shows with the most consistently high viewership across all periods. 
+
+The minimum view is 100000 `{r}period_min` for all of the periods, so I'm assuming that Netflix only tracks and records content that have at least 100000 views, and since the minimum is the same across all periods, I didn't use minimum for this analysis, and instead focused on the mean and standard deviations.
+
+In addition to using the standard deviation, I created a variable called stdev_multiplier, which is used to adjust the number of standard deviations to move away from mean. I wanted to capture the titles with the **HIGHEST** views, so I used the mean (of each period) and added the standard deviation (of the corresponding period) to try to capture the top 13 percentile? https://lesn.appstate.edu/olson/normal_curve.htm
+I kept increasing the percentiles to narrow the amount of titles further by using a constant (which I called *multiplier*): (mean + (multiplier*standard deviation))
+I settled on a constant (or multiplier) of 6 --> ((6 x standard deviation of each period) + mean)
+I am comparing the views of each show to its period's mean+(std_constant*std dev) to get the top top top tier content
+
+The results are surprising because I expected to see Friends or Seinfeld, while there are other content here that I was not expecting to see. It's possible I did something wrong but the presence of Stranger Things, Squid Games, and Bridgerton slightly assuages my fears. In fact, some seasons of these shows appear on the list more than once, in a different period, so I don't think the numbers I got were too far. 
+
+
 
 
 
@@ -371,115 +425,170 @@ shows |>
   select(-`sum(hours_viewed)`)|>
   gt() |> tab_header(title="Total Hours Viewed for Shows, by Period")
 
-movies <- NETFLIX_DATA |> filter(Runtime < 240) |> group_by(period) |> 
+movies <- NETFLIX_DATA |> filter(Runtime < 240 & Runtime > 75) |> group_by(period) |> 
   summarize(movies_hours_viewed = sum(hours_viewed)) |> mutate(total_hours_viewed)
 movies |> 
   mutate(movies_hours_viewed = comma(movies_hours_viewed)) |> 
   select(-`sum(hours_viewed)`) |>
   gt()|> tab_header(title="Total Hours Viewed for Movies, by Period")
 
+
 #what fraction of time was spent on ‘shows’ vs movies?
 shows |> mutate(shows_fraction = shows_hours_viewed / `sum(hours_viewed)`) |> 
   select(-`sum(hours_viewed)`) |> 
   mutate(shows_hours_viewed = comma(shows_hours_viewed)) |> 
-  mutate(shows_fraction = comma(shows_fraction, accuracy=.0001)) |>
+  mutate(shows_fraction = percent(shows_fraction, accuracy=.01)) |>
   gt() |> tab_header(title="Fraction of Time Spent on Shows") |>
   tab_footnote(footnote="shows_fraction was calculated by hours viewed of shows / total hours viewed") 
 movies |> mutate(movies_fraction = movies_hours_viewed / `sum(hours_viewed)`) |> 
   select(-`sum(hours_viewed)`) |> 
   mutate(movies_hours_viewed = comma(movies_hours_viewed)) |> 
-  mutate(movies_fraction = comma(movies_fraction, accuracy=.0001)) |>
+  mutate(movies_fraction = percent(movies_fraction, accuracy=.01)) |>
   gt() |>  tab_header(title="Fraction of Time Spent on Movies") |>
   tab_footnote(footnote="movies_fraction was calculated by hours viewed of movies / total hours viewed")
 
 
-# There is a high possibility that not all shows were captured in the filter above, 
-# only 44210 shows and 14556 movies (58,766 out of 61882 rows) were filtered.
+##### for corporate strategy memo 
+total_hours <- inner_join(shows, movies, join_by(period)) |> 
+  mutate(tot = shows_hours_viewed + movies_hours_viewed ) |> 
+  select(-`sum(hours_viewed).x`, -`sum(hours_viewed).y`)
+total_hours |> 
+  mutate(tot = comma(tot)) |> 
+  rename(total = tot) |>
+  gt()
+
+#####
 
 
 ```
+Within each period, what fraction of time was spent on ‘shows’ vs movies?
+
+Tables 3 and 4 show the fraction of time spent on shows vs movies by period. There is a possibility that not all content were captured in the filter I had used to differentiate shows from movies: content with more than 240 minute runtime, or titles containing "season" are shows, content with Runtime > 75 and < 240 are movies. Overall, the fraction of time spent on shows is higher than on movies across all periods.
 
 
 
+
+
+
+#5
 ```{r}
 
 # 5 How does the performance of live events compare to pre-taped content? 
 
-#1375241
-avg <-NETFLIX_DATA|>filter(!is.na(Views))|>summarize(mean(Views))
-#avg
-
 #Does the average live event draw more viewership than an average piece of pre-taped content? 
 # Percent difference = (avg live − avg taped) ÷ avg taped × 100
 
-# means of taped and live content
+# means of live content
 live_ <- NETFLIX_DATA |> 
   filter(live_event == TRUE) |> 
   summarize(live_mean = mean(Views,na.rm=TRUE))
-live_ |> mutate(live_mean = comma(live_mean)) |> gt() |> tab_header(title="Mean of Live Content")
+
+#mean of taped content
 taped_ <- NETFLIX_DATA |> 
   filter(live_event == FALSE) |> 
   summarize(taped_mean = mean(Views,na.rm=TRUE))
-taped_ |> mutate(taped_mean = comma(taped_mean)) |> gt()|> tab_header(title="Mean of Pre-taped Content")
 
-# percent difference of live vs taped is 11.2% higher for live. surprising 
-# because there not much variety in types of live events compared to pre taped
-# but the higher views for live could be because there are less live events
-# and the taped content could have outlier content
-# that have really high views (or low views) that skew the data. 
+
+# live average views, taped average views, percent diff
 live_|> mutate(taped_) |>
   mutate(percent_diff = (live_mean - taped_) / taped_ ) |> 
   mutate(taped_mean = comma(taped_mean), 
          live_mean=comma(live_mean),
-         percent_difference=comma(percent_diff$taped_mean,accuracy=.001)) |>
+         live_percent_difference=percent(percent_diff$taped_mean,accuracy=.01)) |>
   select(-percent_diff)|>
   gt() |>
-  tab_header(title="Percent Difference of Live vs Taped Content") |>
+  tab_header(title="Percent Difference of Live vs Taped Content, by Views") |>
   tab_footnote(footnote="")
+
+
+
 
 #How about a ‘top tier’ live event vs ‘top tier’ pre-taped content?
-# i interpreted 'top tier' to mean titles that have viewerships higher than avg
-
 #Does a ‘top tier’ live event draw more viewership than a ‘top tier’ pre-taped content?
+
 # average viewership of live top tier content
 
-        #top tier means of taped and live content
-live_top_tier <- NETFLIX_DATA |> filter(live_event == TRUE) |>
+#top tier mean of live content
+live_top_tier <- NETFLIX_DATA |> filter(live_event == TRUE) |> drop_na() |>
   select(Title, Views) |> 
-  mutate(avg) |>
-  filter(Views > `mean(Views)`) |> summarize(live_top_mean = mean(Views,na.rm=TRUE))
-# format the table and add commas
-live_top_tier |> mutate(live_top_mean = comma(live_top_mean)) |> gt() |>
-  tab_header(title="Top Tier Live Content") |>
-  tab_footnote(footnote="")
+  mutate(live_) |>
+  filter(Views > live_mean) |> #print(n=96) |>
+  summarize(live_top_mean = mean(Views,na.rm=TRUE))
+#live_top_tier 
 
-taped_top_tier <- NETFLIX_DATA |> filter(live_event == FALSE) |>
+# top tier mean of taped content
+taped_top_tier <- NETFLIX_DATA |> filter(live_event == FALSE) |> drop_na() |>
   select(Title, Views) |>
-  mutate(avg) |> 
-  filter(Views > `mean(Views)`) |> 
+  mutate(taped_) |> 
+  filter(Views > taped_mean) |> 
   summarize(taped_top_mean = mean(Views,na.rm=TRUE))
-# format the table and add commas
-taped_top_tier|> mutate(taped_top_mean = comma(taped_top_mean)) |> gt() |>
-  tab_header(title="Top Tier Pre-taped Content") |>
-  tab_footnote(footnote="")
+#taped_top_tier
 
-# top tier live content has 19.8% less views than top tier taped content
-# this is what i had expected with the previous q, so i guess it could be 
-# outliers that skewed the data
+# percent difference of top tier content
 live_top_tier|> mutate(taped_top_tier) |>
   mutate(top_tier_percent_diff = (live_top_mean - taped_top_tier) / taped_top_tier ) |>
   mutate(taped_top_mean = comma(taped_top_mean), 
          live_top_mean = comma(live_top_mean),
-         top_tier_percent_difference = comma(top_tier_percent_diff$taped_top_mean,accuracy=.001))|>
+         top_tier_percent_difference = percent(top_tier_percent_diff$taped_top_mean,accuracy=.01))|>
   select(-top_tier_percent_diff)|>
   gt() |> 
-  tab_header(title="Top Tier Live vs Pre-taped Content") |>
+  tab_header(title="Top Tier Live vs Pre-taped Content, by Views") |>
   tab_footnote(footnote="")
 
 
+# higher than average LIVE content
+NETFLIX_DATA |> 
+  filter(live_event == TRUE) |> 
+  arrange(desc(Views)) |> 
+  select(Title, Views, live_event) |>
+  mutate(Views = comma(Views)) |>
+  gt() |> 
+  tab_header(title="Top Tier Live Content (by Views)")
 
 
 ```
+The average live event drew slightly more viewership than an average piece of pre-taped, if judging by percent difference of average live content vs average taped content. [Percent difference = (average live − average taped) ÷ average taped × 100]
+
+Taking the mean of live content and comparing that to the mean of taped content, the percent difference is `{r}live_percent_difference` higher views for live content. I found this surprising because there was not much variety in live events (mostly just wrestling and baseball) compared to pre taped. The higher views for live content could be due to less live events but they have higher views, and the taped content could have outlier content that have really high views (or low views) that skewed the data. 
+
+When comparing the mean of top tier live content and mean of top tier taped content, the percent difference is `{r}top_tier_percent_difference` lower views for live content. I interpreted 'top tier' to mean titles that have viewerships higher than average, so I filtered by content that have higher views than the live/taped average (third table). Top tier live content has `{r}top_tier_percent_difference` less views than top tier taped content, which was what I had expected with the previous question, so it's possible outliers skewed the data. A ‘top tier’ live event drew less views that ‘top tier’ pre-taped content.
+
+
+
+
+
+# task 7. platform strategy memo
+750 words)
+
+inform Netflix’s original content strategy for 2027 and beyond.
+
+You can use the calculations performed above 
+
+touch on the following possible topics: 
+Globally available vs. regionally licensed content
+
+TV shows vs. movies
+if going by the filters i had used above to diffrentiate between shows and movies, i would say netflix should invest more in tv shows as the fraction of tv shows watched, compared to movies is about 10 times higher viewership for tv shows than movies. in fact, all of the top shows
+
+
+
+
+
+
+############################################################################
+
+test
+```{r}
+
+#test
+
+glimpse(NETFLIX_DATA)
+NETFLIX_DATA |> filter(str_detect(Title, "1994")) |> group_by(period, Title) |> filter(!is.na(Views))
+```
+
+
+
+
 
 
 
