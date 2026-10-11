@@ -8,6 +8,8 @@ code-summary: "Show All Code"
 
 
 # Data Acquisition
+
+::: {.callout-note title="Data Acquisition" collapse="true"}
 ``` {r}
 #| output: false
 
@@ -100,7 +102,7 @@ load_netflix_data <- function(){
 
 NETFLIX_DATA <- load_netflix_data()
 ```
-
+:::
 
 # Data Cleaning and Preparation
 ```{r}
@@ -379,9 +381,6 @@ inner_join(period_standard_devs, NETFLIX_DATA, join_by(period == period)) |>
 
 
 ```
-Which shows have had the most consistently high viewership across all periods? 
-These shows are likely to be ‘staples’ that viewers fall back ... e.g., re-runs of Friends.
-
 The 3rd and 4th tables are the list of shows with the most consistently high viewership across all periods. 
 
 The minimum view is 100000 `{r}period_min` for all of the periods, so I'm assuming that Netflix only tracks and records content that have at least 100000 views, and since the minimum is the same across all periods, I didn't use minimum for this analysis, and instead focused on the mean and standard deviations.
@@ -592,3 +591,11 @@ NETFLIX_DATA |> filter(str_detect(Title, "1994")) |> group_by(period, Title) |> 
 Claude AI was used to help figure out what formulas are appropriate to use for Part 6: Questions 4 and 5.
 
 :::
+
+
+
+
+
+
+
+
