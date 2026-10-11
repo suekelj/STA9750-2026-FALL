@@ -145,20 +145,15 @@ data_start <- NETFLIX_DATA |> summarize(.by=period_start) |> slice_min(period_st
 data_end <- NETFLIX_DATA |> summarize(.by=period_end) |> slice_max(period_end)
 ```
 The date range covered by this data set is `{r} data_start` to `{r} data_end`.\
-To find the start date, I used the summarize() method, sorted by period_start, and used slice_min() to find the minimum date. 
-I used the same method to find the period_end date, but instead I used slice_max().
-
-To check, I used skim() from the skimr package. 
-
 
 
 
 2. 
 ```{r}
-non_distinct_shows <- NETFLIX_DATA |> tally() # 61892
+# non_distinct_shows <- NETFLIX_DATA |> tally() # 61892
 distinct_shows <- NETFLIX_DATA |> distinct() |> tally()  #61852
 ```
-There are `{r} distinct_shows` different shows and movies in this data set. Originally, I had only used the tally() method which gave me `{r} non_distinct_shows` rows. But I wondered if it was possible for there to be duplicates, so I used distinct(), which lead to `{r} distinct_shows` rows.
+There are `{r} distinct_shows` different shows and movies in this data set.
 
 
 
@@ -174,8 +169,8 @@ bridgerton_hours <- NETFLIX_DATA |>
   sum() |> comma()
 ```
 `{r} bridgerton_hours` hours were spent watching content from the Bridgerton universe. This includes three seasons of the TV series, the Afterparty, and Queen Charlotte. The amount of hours includes 
-he dataset has repeats of each season and the other spinoffs ___________
-There are repeats throughout the dataset and throughout the different period represented in the dataset and I think it is due to the fact that Bridgerton is still popular even after _________ 
+he dataset has repeats of each season and the other spinoffs.
+There are repeats throughout the dataset and throughout the different period represented in the dataset and I think it is due to the fact that Bridgerton is still popular well after a season is released. 
 
 
 
@@ -186,7 +181,7 @@ st_hours <- is_stranger_things |> filter_out(str_detect(Title, "Beyond")) |>
   filter_out(str_detect(Title, "Tales")) |> 
   filter_out(str_detect(Title,"Fireplace")) |> select(hours_viewed) |> sum() |> comma()
 ```
-`{r} st_hours` hours were spent watching the five seasons Stranger Things. This number excludes spinoffs and Stranger Things: Fireplace. This is a high number. However, just like Bridgerton above, the repeat listings by Netflix is included in this number. Stranger Things is still widely watched up to and including 2026H1.
+`{r} st_hours` hours were spent watching the five seasons Stranger Things. This number excludes spinoffs and Stranger Things: Fireplace. Just like Bridgerton above, the repeat listings by Netflix is included in this number. Stranger Things is still widely watched up to and including in 2026H1.
 
 
 
@@ -205,8 +200,8 @@ total_watch_time <- NETFLIX_DATA |> select(hours_viewed) |> sum()
 watch_time_percent <- percent(sum_top_ten / total_watch_time, accuracy=.0001)
 watch_time_percent
 ```
-`{r} watch_time_percent` of total watch time was spent on the Top 10 title of 2026H1.
-I interpreted Top 10 titles to mean the top ten most viewed, so for this, I had to create a filter for just 2026H1 content, then used slice_max() to sort the Views and limited the output to just ten. Then I had to find the TOTAL watch time of all content from 2023H1 to 2026H1.
+`{r} watch_time_percent` of total watch time was spent on the Top 10 titles of 2026H1.
+I interpreted Top 10 titles to mean the top ten most viewed, so for this, I created a filter for just 2026H1 content, then sorted the views. Then I had to find the TOTAL watch time of all content from 2023H1 to 2026H1.
 
 Finally I used the total watch time of Top 10 title of 2026H1 and divided that by the total watch time of all of the content.
 
@@ -217,6 +212,7 @@ Finally I used the total watch time of Top 10 title of 2026H1 and divided that b
 ```{r}
 #6. What fraction of Netflix’s catalog is globally available? 
 #(Answer this both by title and weighted by hours viewed)
+
 # df of netflix content that's available globally
 avail_globally <- NETFLIX_DATA |> filter(available_globally == TRUE)
 
@@ -237,6 +233,7 @@ The fraction of Netflix's catalog that is globally available is `{r} global_by_c
 #part 6
 
 
+#1
 ``` {r}
 
 library(gt)
@@ -291,10 +288,7 @@ The 2023H1 dataset didn't have a Views column, so the tables I've generated will
 
 I also made another table using hours_viewed as the metric instead, to see if there was a significant difference and I thought it would be nice to include 2023H1 to analyze. 
 
-In my opinion, hours_viewed may be more informative than total views because Views seems to act more like a ___________, while hours_viewed takes into account content that are dropped as it shows how long people sit through the show/movie.
-
-
-
+In my opinion, hours_viewed may be more informative than total views because Views seems to act more like a click counter, while hours_viewed takes into account content that are dropped as it shows how long people sit through the show/movie.
 
 
 
@@ -318,9 +312,10 @@ NETFLIX_DATA |> select(period,Title,Runtime) |>
   gt() |> tab_header(title="Total Content Runtime by Period")
 
 
-#content runtime is increasing while number of title by period is descreasing.
-
 ```
+The first table is the Number of Title by period and the second is total content runtime by period. Content runtime is increasing while the number of titles by period is decreasing. There is a huge drop in number of titles from 2023H1 to 2023H2 so I'm guessing that Netflix either revamped their data reporting in between those two periods, dropped content, or lost streaming rights to licensed content. Since 2023H2, number of titles has been increasing by small amounts each period.
+
+The increase in content runtime may be a result of the increase in number of content. 2023H1 is anomalous in that the number of titles is over twice as large as 2023H2, but content runtime is **lower** that 2023H2.
 
 
 
