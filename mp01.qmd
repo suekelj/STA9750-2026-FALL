@@ -7,9 +7,12 @@ code-summary: "Show All Code"
 ---
 
 
-# Data Acquisition
+Please ignore all comments within the code blocks. The comments are for me.
 
-::: {.callout-note title="Data Acquisition" collapse="true"}
+
+## Data Acquisition
+
+
 ``` {r}
 #| output: false
 
@@ -102,12 +105,19 @@ load_netflix_data <- function(){
 
 NETFLIX_DATA <- load_netflix_data()
 ```
-:::
 
-# Data Cleaning and Preparation
+
+
+
+
+## Data Cleaning and Preparation
+
+::: {.callout-note title="Data Cleaning and Preparation" collapse="true"}
+
 ```{r}
 #| output: false
 # task 2, rename column names
+
 NETFLIX_DATA <- load_netflix_data() |> 
   rename(hours_viewed = `Hours Viewed`,
          release_date = `Release Date`,
@@ -138,7 +148,10 @@ skim(NETFLIX_DATA)
 
 ```
 
-#Task 5: Exploratory Questions - Inline Values
+:::
+
+
+##Task 5: Exploratory Questions - Inline Values
 
 1. 
 
@@ -203,7 +216,7 @@ watch_time_percent <- percent(sum_top_ten / total_watch_time, accuracy=.0001)
 watch_time_percent
 ```
 `{r} watch_time_percent` of total watch time was spent on the Top 10 titles of 2026H1.
-I interpreted Top 10 titles to mean the top ten most viewed, so for this, I created a filter for just 2026H1 content, then sorted the views. Then I had to find the TOTAL watch time of all content from 2023H1 to 2026H1.
+I interpreted Top 10 titles to mean the top ten most viewed, so for this, I created a filter for just 2026H1 content, then sorted the views. Then I had to find the **TOTAL** watch time of all content from 2023H1 to 2026H1.
 
 Finally I used the total watch time of Top 10 title of 2026H1 and divided that by the total watch time of all of the content.
 
@@ -338,6 +351,8 @@ period_stats <- NETFLIX_DATA |> group_by(period) |>
             period_min=min(as.numeric(Views), na.rm=TRUE))
 period_stats
 
+get(period_min)
+
   # shows_higher_than_avg are the shows with viewship higher than that period's average
 shows_higher_than_avg <- inner_join(period_stats, NETFLIX_DATA, join_by(period == period)) |> 
   filter_out(is.na(Views)) |> 
@@ -383,7 +398,7 @@ inner_join(period_standard_devs, NETFLIX_DATA, join_by(period == period)) |>
 ```
 The 3rd and 4th tables are the list of shows with the most consistently high viewership across all periods. 
 
-The minimum view is 100000 `{r}period_min` for all of the periods, so I'm assuming that Netflix only tracks and records content that have at least 100000 views, and since the minimum is the same across all periods, I didn't use minimum for this analysis, and instead focused on the mean and standard deviations.
+The minimum View is the same across all of the periods, so I'm assuming that Netflix only tracks and records content that have at least that many views. And since the minimum is the same across all periods, I didn't use minimum for this analysis. Instead, I focused on the mean and standard deviations.
 
 In addition to using the standard deviation, I created a variable called stdev_multiplier, which is used to adjust the number of standard deviations to move away from mean. I wanted to capture the titles with the **HIGHEST** views, so I used the mean (of each period) and added the standard deviation (of the corresponding period) to try to capture the top 13 percentile? https://lesn.appstate.edu/olson/normal_curve.htm
 I kept increasing the percentiles to narrow the amount of titles further by using a constant (which I called *multiplier*): (mean + (multiplier*standard deviation))
@@ -565,20 +580,6 @@ TV shows vs. movies
 if going by the filters i had used above to diffrentiate between shows and movies, i would say netflix should invest more in tv shows as the fraction of tv shows watched, compared to movies is about 10 times higher viewership for tv shows than movies. in fact, all of the top shows
 
 
-
-
-
-
-############################################################################
-
-test
-```{r}
-
-#test
-
-glimpse(NETFLIX_DATA)
-NETFLIX_DATA |> filter(str_detect(Title, "1994")) |> group_by(period, Title) |> filter(!is.na(Views))
-```
 
 
 
