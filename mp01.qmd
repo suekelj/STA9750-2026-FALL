@@ -355,7 +355,7 @@ get(period_min)
 
   # shows_higher_than_avg are the shows with viewship higher than that period's average
 shows_higher_than_avg <- inner_join(period_stats, NETFLIX_DATA, join_by(period == period)) |> 
-  filter_out(is.na(Views)) |> 
+  filter_out(is.na(Views)) |>  
   select(period, Title, period_mean, Views) |>
   filter((Views > period_mean)) |> 
   mutate(Views=comma(Views), period_mean=comma(period_mean)) |> gt() |>
