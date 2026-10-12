@@ -10,8 +10,6 @@ website:
   navbar:
     background: primary
     search: false
-    left:
-      - mp01.qmd
 
 format:
   html:
