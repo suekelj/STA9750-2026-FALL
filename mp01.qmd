@@ -365,7 +365,6 @@ period_stats <- NETFLIX_DATA |> group_by(period) |>
             period_min=min(as.numeric(Views), na.rm=TRUE))
 period_stats
 
-get(period_min)
 
   # shows_higher_than_avg are the shows with viewship higher than that period's average
 shows_higher_than_avg <- inner_join(period_stats, NETFLIX_DATA, join_by(period == period)) |> 
@@ -420,7 +419,7 @@ I continued increasing the percentiles to narrow the amount of titles further by
 I settled on a constant (or multiplier) of 6 --> ((6 x standard deviation of each period) + mean)
 I am comparing the views of each show to its period's mean+(std_constant*std dev) to get the top top top tier content
 
-The results are surprising because I expected to see Friends or Seinfeld, while there are other content here that I was not expecting to see. It's possible I did something wrong but the presence of Stranger Things, Squid Games, and Bridgerton slightly assuages my fears. In fact, some seasons of these shows appear on the list more than once, in a different period, so I don't think the numbers I got were too far off. 
+The results are surprising because I expected to see Friends or Seinfeld, while there are other titles here that I was not expecting to see. It's possible I did something wrong but the presence of Stranger Things, Squid Games, and Bridgerton slightly assuages my fears. In fact, some seasons of these shows appear on the list more than once, in a different period, so I don't think the numbers I got were too far off. 
 
 
 
@@ -585,19 +584,20 @@ I think the current mix of live vs taped content is a good mix. Even though live
 
 
 
-# task 7. platform strategy memo
-750 words)
+## 7. Platform Strategy Memo
 
-inform Netflix’s original content strategy for 2027 and beyond.
+For Netflix’s original content strategy for 2027 and beyond, I want to advise Netflix to invest more on TV shows. Going by the filters I had used above to differentiate between shows and movies (anything with season in the title is a show or anything over 4 hours is also a show, and anything between 75 to 240 minutes is a movie), I would say Netflix should invest more in shows, as the fraction of shows watched, compared to movies is about 10 times higher  [part 6, question 4]. In fact, all of the top content by total hours viewed in each period [part 6, question 1] were shows, including limited series. The results of the top ten content of 2026H1 were also all shows and limited series.
 
-You can use the calculations performed above 
+I also want to mention that of the few repeated titles and seasons that appear in multiple periods, they were shows that are/were extremely popular, well known, and/or beloved enough to make appearances across the periods such as Squid Game and Bridgerton. To be more specific about my recommendation, I think Netflix should pay special attention to those shows as they are the ones viewers keep going back for to rewatch. My hypothesis is that content with longer runtime, such as shows and limited series, are able to hold onto viewers’ attention better and thus have higher hours viewed rate. Limited series would be nice to mix in, since a limited series doesn’t run for very long so there’s less cost in creating a limited series than a show, but still has a longer hold on viewers than a movie. 
 
-touch on the following possible topics: 
-Globally available vs. regionally licensed content
 
-TV shows vs. movies
-if going by the filters i had used above to diffrentiate between shows and movies, i would say netflix should invest more in tv shows as the fraction of tv shows watched, compared to movies is about 10 times higher viewership for tv shows than movies. in fact, all of the top shows
+Looking at the trends over time, it doesn’t seem that Netflix content is losing any more or gaining any more viewership. While the viewership of movies fluctuates over time, it still remained somewhat consistent. As mentioned previously, movie viewership remains consistent over the periods of 2023H1 to 2026H1, at around 1-1.5% of total viewership. While shows have ten times as much viewership: ranging from 12-13.8%, and total viewership of shows has been increasing since 2023H2 by about 2 billion hours increased per period.
 
+Another notable metric is that the total content runtime *by period* [part 6, question 2] and total hours viewed for shows [part 6, question 4] increased but the mean viewership by period [part 6, question 3] continues to decrease. Indeed, if the total hours viewed of shows and hours viewed of movies were added by period, the sum of these two **do** actually follow a similar pattern as the increase in shows by hours viewed, where it has been increasing every period, with the exception of a small dip in 2023H2 and another in 2025H2. 
+
+Increase of content runtime go hand in hand with increase of hours viewed, but decrease in mean views could mean that viewers view titles that have long runtimes. As mentioned previously, in this data set “Views” acts more like a click counter, so viewers are clicking on less content, but they stay watching that title longer. If the trends continue, I think Netflix should keep creating shows. 
+
+In general, Netflix’s shows beat out movies both in viewership and hours watched and it’s a constant trend throughout the periods in the datasets. The increases in runtime throughout the periods combined with the increases in hours viewed for shows mean that content shows have higher retention rates as viewers would have to stay with Netflix in order to wait for new seasons of their favorite shows to release. If working under this hypothesis, shows and limited series are worth investing more in, not just because of popularity but because with longer content runtime, there are more opportunities for Netflix to place ads throughout an episode, in addition to making more revenue off of subscription fees. Netflix movies just don’t draw as many viewers than shows, and that trend is reflected throughout the periods of the dataset.
 
 
 
