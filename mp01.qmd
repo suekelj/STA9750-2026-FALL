@@ -108,8 +108,6 @@ NETFLIX_DATA <- load_netflix_data()
 
 
 
-
-
 ## Data Cleaning and Preparation
 
 ::: {.callout-note title="Data Cleaning and Preparation" collapse="true"}
@@ -125,8 +123,8 @@ NETFLIX_DATA <- load_netflix_data() |>
 
 
 library(scales)
-
 ```
+These column names had to be renamed with underscores, as using the original names with spaces would mean having to use the backticks when referencing these columns.
 
 
 
@@ -135,20 +133,26 @@ library(scales)
 # task 3 - year into int, available_globally into boolean
 NETFLIX_DATA <- NETFLIX_DATA |> 
   mutate(year = as.integer(year), available_globally =available_globally== "Yes") 
-glimpse(NETFLIX_DATA)
+#glimpse(NETFLIX_DATA)
 ```
+The data type of Year had to be converted to integer. Even though Year won't have any math performed on it, it would still be useful to have Year as an int for filtering or comparison reasons.
+The data type of available_globally also had to be converted to a boolean for the same reasons. 
+
 
 
 ```{r}
 
 # task 4 - Initial EDA Pass
 summary(NETFLIX_DATA)
+
 library(skimr)
 skim(NETFLIX_DATA)
 
 ```
 
 :::
+
+
 
 
 ##Task 5: Exploratory Questions - Inline Values
@@ -165,11 +169,14 @@ The date range covered by this data set is `{r} data_start` to `{r} data_end`.\
 
 2. 
 ```{r}
-# non_distinct_shows <- NETFLIX_DATA |> tally() # 61892
+non_distinct_shows <- NETFLIX_DATA |> tally() # 61892
 distinct_shows <- NETFLIX_DATA |> distinct() |> tally()  #61852
-```
-There are `{r} distinct_shows` different shows and movies in this data set.
 
+min <- NETFLIX_DATA |> summarize(min(Views, na.rm = TRUE))
+#min
+```
+There are `{r} distinct_shows` different shows and movies in this data set. The full total of shows is `{r} non_distinct_shows`. There's not much of a difference, but it's important to distinguish because this dataset has repeat listing of the same season of the same show.
+Since this data set tracks content that has `{r}min` or more views, I find it hard to tell whether `{r} distinct_shows` is a lot, given Netflix doesn't publish all of their content in every country, and as mentioned, there are repeated seasons of the same shows, but in different periods.
 
 
 
@@ -182,10 +189,12 @@ bridgerton_hours <- NETFLIX_DATA |>
   filter(str_detect(Title, "Bridgerton")) |> 
   select(hours_viewed) |> 
   sum() |> comma()
+
+bridgerton_hours
 ```
-`{r} bridgerton_hours` hours were spent watching content from the Bridgerton universe. This includes three seasons of the TV series, the Afterparty, and Queen Charlotte. The amount of hours includes 
-he dataset has repeats of each season and the other spinoffs.
-There are repeats throughout the dataset and throughout the different period represented in the dataset and I think it is due to the fact that Bridgerton is still popular well after a season is released. 
+`{r} bridgerton_hours` hours were spent watching content from the Bridgerton universe. This includes three seasons of the TV series, the Afterparty, and Queen Charlotte. 
+There are repeats throughout the dataset and throughout the different periods represented in the dataset and I think it is due to the fact that Bridgerton remains popular well after a season is released. For example, season 1 might show up on the 2026H1 table even though season 1 was released several years ago due to high viewership.
+It wouldn't hurt Netflix to keep producing Bridgerton material.
 
 
 
@@ -196,7 +205,7 @@ st_hours <- is_stranger_things |> filter_out(str_detect(Title, "Beyond")) |>
   filter_out(str_detect(Title, "Tales")) |> 
   filter_out(str_detect(Title,"Fireplace")) |> select(hours_viewed) |> sum() |> comma()
 ```
-`{r} st_hours` hours were spent watching the five seasons Stranger Things. This number excludes spinoffs and Stranger Things: Fireplace. Just like Bridgerton above, the repeat listings by Netflix is included in this number. Stranger Things is still widely watched up to and including in 2026H1.
+`{r} st_hours` hours were spent watching the five seasons Stranger Things. This number excludes spinoffs and Stranger Things: Fireplace. Just like Bridgerton above, the repeat listings by Netflix is included in this number. Stranger Things is still widely watched up to and including in 2026H1, similar to Bridgerton.
 
 
 
@@ -208,6 +217,7 @@ library(dplyr)
 
 top_ten <- NETFLIX_DATA |> filter(period == "2026H1") |> 
   slice_max(order_by=Views, n=10) |> select(Title, hours_viewed)
+top_ten
 
 sum_top_ten <- top_ten |> select(hours_viewed) |> sum()
 total_watch_time <- NETFLIX_DATA |> select(hours_viewed) |> sum()
@@ -218,7 +228,7 @@ watch_time_percent
 `{r} watch_time_percent` of total watch time was spent on the Top 10 titles of 2026H1.
 I interpreted Top 10 titles to mean the top ten most viewed, so for this, I created a filter for just 2026H1 content, then sorted the views. Then I had to find the **TOTAL** watch time of all content from 2023H1 to 2026H1.
 
-Finally I used the total watch time of Top 10 title of 2026H1 and divided that by the total watch time of all of the content.
+Finally I used the total watch time of Top 10 title of 2026H1 and divided that by the total watch time of all of the content. With a fraction of `{r} watch_time_percent` for the total watch time of the Top 10 title of 2026H1, it doesn't seem very high, however the titles that are on the list of top ten of 2026H1 are either Limited Series or a new season of an already well known and beloved show. I think that is reason for Netflix to continue investing in their more successful shows, but also branch out with some limited series, as they usually last for a few episodes so the cost to create would be lower.
 
 
 
@@ -241,11 +251,15 @@ global_by_hours_viewed <-
   comma(sum(select(avail_globally,hours_viewed)) / sum(select(NETFLIX_DATA,hours_viewed)), accuracy=.0001)
 global_by_hours_viewed
 ```
-The fraction of Netflix's catalog that is globally available is `{r} global_by_count` by title, and `{r} global_by_hours_viewed` by hours viewed.
+The fraction of Netflix's catalog that is globally available is `{r} global_by_count` by title, and `{r} global_by_hours_viewed` by hours viewed. 
+
+Netflix's globally available content by title is lower than by hours viewed, with half of Netflix's content by hours viewed is available globally. Again, I'm more interested in hours viewed than the count of globally available content because the title count doesn't assume anyone has watched the title or has even clicked on it.
+
+I think Netflix can go either way on making region specific content. There may be some regions that have thriving local Netflix content that audiences would rather watch, than whatever other foreign Netflix content is available to them. 
 
 
 
-#part 6
+##part 6
 
 
 #1
@@ -303,7 +317,7 @@ The 2023H1 dataset didn't have a Views column, so the tables I've generated will
 
 I also made another table using hours_viewed as the metric instead, to see if there was a significant difference and I thought it would be nice to include 2023H1 to analyze. 
 
-In my opinion, hours_viewed may be more informative than total views because Views seems to act more like a click counter, while hours_viewed takes into account content that are dropped as it shows how long people sit through the show/movie.
+In my opinion, hours_viewed may be more informative than total views because Views seems to act more like a click counter, while hours_viewed takes into account content that are dropped as it shows how long people sit through the show/movie. 
 
 
 
@@ -330,7 +344,7 @@ NETFLIX_DATA |> select(period,Title,Runtime) |>
 ```
 The first table is the Number of Title by period and the second is total content runtime by period. Content runtime is increasing while the number of titles by period is decreasing. There is a huge drop in number of titles from 2023H1 to 2023H2 so I'm guessing that Netflix either revamped their data reporting in between those two periods, dropped content, or lost streaming rights to licensed content. Since 2023H2, number of titles has been increasing by small amounts each period.
 
-The increase in content runtime may be a result of the increase in number of content. 2023H1 is anomalous in that the number of titles is over twice as large as 2023H2, but content runtime is **lower** that 2023H2.
+The increase in content runtime may be a result of the increase in number of content. 2023H1 is anomalous in that the number of titles is over twice as large as 2023H2, but content runtime is **lower** that 2023H2. 
 
 
 
@@ -400,18 +414,20 @@ The 3rd and 4th tables are the list of shows with the most consistently high vie
 
 The minimum View is the same across all of the periods, so I'm assuming that Netflix only tracks and records content that have at least that many views. And since the minimum is the same across all periods, I didn't use minimum for this analysis. Instead, I focused on the mean and standard deviations.
 
-In addition to using the standard deviation, I created a variable called stdev_multiplier, which is used to adjust the number of standard deviations to move away from mean. I wanted to capture the titles with the **HIGHEST** views, so I used the mean (of each period) and added the standard deviation (of the corresponding period) to try to capture the top 13 percentile? https://lesn.appstate.edu/olson/normal_curve.htm
-I kept increasing the percentiles to narrow the amount of titles further by using a constant (which I called *multiplier*): (mean + (multiplier*standard deviation))
+In addition to using the standard deviation, I created a variable called stdev_multiplier, which is used to adjust the number of standard deviations to move away from mean. I wanted to capture the titles with the **HIGHEST** views, so I used the mean (of each period) and added the standard deviation (of the corresponding period) to try to capture the top percentiles https://lesn.appstate.edu/olson/normal_curve.htm
+
+I continued increasing the percentiles to narrow the amount of titles further by using a constant (which I called *multiplier*): (mean + (multiplier*standard deviation))
 I settled on a constant (or multiplier) of 6 --> ((6 x standard deviation of each period) + mean)
 I am comparing the views of each show to its period's mean+(std_constant*std dev) to get the top top top tier content
 
-The results are surprising because I expected to see Friends or Seinfeld, while there are other content here that I was not expecting to see. It's possible I did something wrong but the presence of Stranger Things, Squid Games, and Bridgerton slightly assuages my fears. In fact, some seasons of these shows appear on the list more than once, in a different period, so I don't think the numbers I got were too far. 
+The results are surprising because I expected to see Friends or Seinfeld, while there are other content here that I was not expecting to see. It's possible I did something wrong but the presence of Stranger Things, Squid Games, and Bridgerton slightly assuages my fears. In fact, some seasons of these shows appear on the list more than once, in a different period, so I don't think the numbers I got were too far off. 
 
 
 
 
 
 ```{r}
+library(gt)
 #4 Within each period, what fraction of time was spent on ‘shows’ vs movies?
 #hours viewed of shows / total hours viewed
 
@@ -470,9 +486,12 @@ total_hours |>
 
 
 ```
-Within each period, what fraction of time was spent on ‘shows’ vs movies?
 
-Tables 3 and 4 show the fraction of time spent on shows vs movies by period. There is a possibility that not all content were captured in the filter I had used to differentiate shows from movies: content with more than 240 minute runtime, or titles containing "season" are shows, content with Runtime > 75 and < 240 are movies. Overall, the fraction of time spent on shows is higher than on movies across all periods.
+Tables 3 and 4 show the fraction of time spent on shows vs movies by period. There is a possibility that not all content were captured in the filter I had used to differentiate shows from movies: content with more than 240 minute runtime, or titles containing "season" are shows, content with runtime > 75 and < 240 are movies. 
+
+The total hours viewed of movies fluctuates while the total hours viewed of shows has been steadily increasing, with the exception of a small dip in 2023H2. The fraction of time spent on shows and fraction of time spent on movies show similar patterns. Overall, the fraction of time spent on shows is higher than on movies across all periods. The fraction of time spent on movies and the total hours viewed of movies don't seem to follow any trends and look unpredictable.
+
+It's possible that the hours viewed of shows and fraction of time spent on shows are due to the fact that shows in general are longer and is thus able to hold onto an audience for longer. It may be worthwhile for Netflix to create more shows.
 
 
 
@@ -562,7 +581,7 @@ Taking the mean of live content and comparing that to the mean of taped content,
 
 When comparing the mean of top tier live content and mean of top tier taped content, the percent difference is `{r}top_tier_percent_difference` lower views for live content. I interpreted 'top tier' to mean titles that have viewerships higher than average, so I filtered by content that have higher views than the live/taped average (third table). Top tier live content has `{r}top_tier_percent_difference` less views than top tier taped content, which was what I had expected with the previous question, so it's possible outliers skewed the data. A ‘top tier’ live event drew less views that ‘top tier’ pre-taped content.
 
-
+I think the current mix of live vs taped content is a good mix. Even though live content doesn't bring in as many views as taped content, live content probably requires less initial investment to make compared to taped content, so there's probably a decent ROI.
 
 
 
