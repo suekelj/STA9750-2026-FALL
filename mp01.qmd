@@ -12,14 +12,12 @@ format:
 
 ## Introduction
 
-A suitable introduction goes here. In this mini-project, I intend to demonstrate
-my skills at Data Summarization/Exploratory Analysis/Table Formatting in an analysis of Media/Internet data.
 
+In this mini-project, I demonstrate my skills at data summarization and analysis by investigating Netflix viewership data. The acquired Netflix data is cleaned and prepared for the analysis. 
 
 
 
 ## Data Acquisition and Preparation
-
 
 ``` {r}
 #| output: false
@@ -119,9 +117,10 @@ NETFLIX_DATA <- load_netflix_data()
 ## Data Cleaning and Preparation
 
 
+Task 2, rename column names
 ```{r}
 #| output: false
-# task 2, rename column names
+
 
 NETFLIX_DATA <- load_netflix_data() |> 
   rename(hours_viewed = `Hours Viewed`,
@@ -134,10 +133,10 @@ library(scales)
 These column names had to be renamed with underscores, as using the original names with spaces would mean having to use the backticks when referencing these columns.
 
 
-
+Task 3 
 ```{r}
 
-# task 3 - year into int, available_globally into boolean
+
 NETFLIX_DATA <- NETFLIX_DATA |> 
   mutate(year = as.integer(year), available_globally =available_globally== "Yes") 
 #glimpse(NETFLIX_DATA)
@@ -152,10 +151,10 @@ The data type of available_globally also had to be converted to a boolean for th
 
 ## Exploratory Analysis
 
-
+Task 4 - Initial EDA Pass
 ```{r}
 
-# task 4 - Initial EDA Pass
+
 summary(NETFLIX_DATA)
 
 library(skimr)
