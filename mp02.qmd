@@ -317,11 +317,15 @@ most_fuel_agencies <- NTD_ENERGY |> group_by(`Agency Name`) |> summarise(across(
   `Gallons of Kerosene`  ,
   `Gallons of Liquified Nat Gas`,
   `Gallons of Liquified Petroleum Gas` 
-), sum, na.rm = TRUE)) |> mutate(total = rowSums(across(where(is.numeric)), na.rm = TRUE)) |> 
-  arrange(desc(total)) |> head(5) 
+), sum, na.rm = TRUE)) |> 
+  mutate(total = rowSums(across(where(is.numeric)), na.rm = TRUE)) |> 
+  arrange(desc(total)) |> head(5) |>  
+  mutate(across(where(is.numeric), label_comma())) 
 most_fuel_agencies
 
-most_fuel_agencies |> select(`Agency Name`, total) |> gt()
+most_fuel_agencies |> gt()
+
+#most_fuel_agencies_totals <- most_fuel_agencies |> select(`Agency Name`, total) |> gt()
 
 ```
 
@@ -343,12 +347,17 @@ least_common_fuel <- NTD_ENERGY |>
     `Gallons of Liquified Petroleum Gas` 
   ), sum, na.rm = TRUE)) |> 
   pivot_longer(cols=everything()) |> 
-  filter_out(value == 0) |> slice_max(value)
+  filter_out(value == 0) |> slice_min(value) |> pull(name)
+
   #arrange(value) |> head(1)
-least_common_fuel <- least_common_fuel |> pull(name) |> strsplit(" ")
-#least_common_fuel <- least_common_fuel[c(0, 1)] 
+
+least_common_fuel <- strsplit(least_common_fuel, split = " ")[[1]][-c(1, 2)]
+
+original_string <- str_flatten(least_common_fuel, collapse = " ")
+
+#least_common_fuel <- paste(least_common_fuel[[1]], collapse = " ")
+
 least_common_fuel
-  #parts[-c(0,1)]
 
 ```
 
@@ -357,9 +366,12 @@ least_common_fuel
 The five transit services that have the most UPT annualy are :
 ```{r}
 
+library(dplyr)
+
 # 1.Which five transit services have the most UPT annually? (Graph)
 most_upt <- NTD_SERVICE |> 
   arrange(desc(total_upt)) |> 
+  mutate(across(where(is.numeric), label_comma())) |>
   head(5) 
 
 ggplot(most_upt, aes(x=AGENCY, y=total_upt)) + geom_col()
@@ -370,25 +382,44 @@ ggplot(most_upt, aes(x=AGENCY, y=total_upt)) + geom_col()
 The five states that have the fewest total miles travelled by public transit are:
 ``` {r}
 # 4. Which five states has the fewest total miles travelled by public transit? (Graph)
-NTD_SERVICE |> group_by(state) |> summarize(fuck = sum(sum_passenger_miles, na.rm=TRUE)) |> arrange(fuck)
+fewest_pub_transit <- NTD_SERVICE |> 
+  group_by(state) |> 
+  summarize(total_pub_transit = sum(sum_passenger_miles, na.rm=TRUE)) |> 
+  arrange(total_pub_transit) |> head(10)
+
+ggplot(fewest_pub_transit,
+       aes(x = total_pub_transit,
+           y = reorder(state, total_pub_transit))) +
+  geom_col() +
+  geom_text(aes(label = comma(total_pub_transit)),
+            hjust = -0.1, size = 4) +
+  scale_x_continuous(labels = label_number(scale_cut = cut_short_scale()),
+                     expand = expansion(mult = c(0, 0.2))) +
+  labs(title = "States with the Fewest Public Transit Passenger Miles",
+       subtitle = "Five lowest totals among the 50 states, 2025",
+       x = "Total passenger miles",
+       y = NULL,
+       caption = "Source: National Transit Database, 2025 Service by Agency") +
+  theme_minimal(base_size = 14) +
+  theme(panel.grid.major.y = element_blank(),
+        plot.title = element_text(face = "bold"))
 
 ```
+The dataset also included data from US territories including American Samoa, Guam, Northern Mariana Islands, and US Virgin Islands.
+Of the 50 states, Wyoming had 0 public transit passenger miles. After doing some quick searching, Wyoming actually **does** have public transit, so that just means that the actual public transit miles were probably just not recorded for Wyoming.
+The next state with the least public transit miles is South Dakota.
 
 
-
+Not all states are represented in the data. 
 
 ```{r}
 #5. Are all states represented in this data? If no, which ones are missing? 
   #The state.name and state.abb objects built into R may be useful here, as well as the anti_join() function.3 (Inline)
 NTD_SERVICE |> 
-  filter(!c(state) %in% c(state.abb)) |> 
+  filter( !(c(state) %in% c(state.abb)) ) |> 
   select(state) |> 
   group_by(state) |> 
   distinct()
-
-
-
-
 
 ```
 
@@ -447,46 +478,65 @@ row_emissions <- energy_service |>
 
 
 
-#task 6
-
-#Using the total emissions calculated above, compute the emissions:
-  
-joined <- inner_join(row_emissions, NTD_SERVICE, join_by(`NTD ID` == NTD_ID))
-# glimpse(joined)
 ```
 
-```{r}
-# emissions Per UPT
-joined |> group_by(`NTD ID`) |> 
-  drop_na() |> 
-  mutate(per_upt = total_sum / total_upt) |>
-  select(`NTD ID`,AGENCY.x, Mode, per_upt) |>
-  ungroup() |>
-  mutate(`NTD ID` = comma(`NTD ID`),
-         per_upt = comma(per_upt)) |>
-  gt()
 
-```
-
+## Task 6
 ```{r}
 
-# Per passenger mile
-NTD_SERVICE |> 
-  inner_join(row_emissions, join_by(NTD_ID == `NTD ID`))  |> 
-  drop_na()|> 
-  group_by(NTD_ID, AGENCY.x) |> 
-  mutate(per_pass_mi = total_sum / sum_passenger_miles ) |>
-  select(NTD_ID,AGENCY.x, Mode, per_pass_mi) 
+# Same code -> name mapping used in Task 2 (reuse for both tables)
+mode_names <- c(HR = "Heavy Rail", 
+                DR = "Demand Response", FB = "Ferryboat",
+                MB = "Bus", SR = "Streetcar Rail", TB = "Trolleybus",
+                VP = "Vanpool", CB = "Commuter Bus", RB = "Bus Rapid Transit",
+                LR = "Light Rail", YR = "Hybrid Rail",
+                MG = "Monorail / Automated Guideway", CR = "Commuter Rail",
+                AR = "Alaska Railroad", TR = "Aerial Tramway",
+                IP = "Inclined Plane", CC = "Cable Car")
 
-# Which agencies are most efficient on these bases? 
 
+# NTD_SERVICE: one row per agency + mode (sum over type of service)
+service_by_mode <- NTD_SERVICE |>
+  mutate(NTD_ID = as.numeric(NTD_ID),
+         Mode   = coalesce(unname(mode_names[mode]), "Unknown")) |>
+  group_by(NTD_ID, Mode, AGENCY, state) |>
+  summarize(total_upt           = sum(total_upt, na.rm = TRUE),
+            sum_passenger_miles = sum(sum_passenger_miles, na.rm = TRUE),
+            .groups = "drop")
+
+# Join on BOTH keys; relationship= errors out if any row still duplicates
+energy_service <- NTD_ENERGY |>
+  inner_join(service_by_mode,
+             join_by(`NTD ID` == NTD_ID, Mode),
+             relationship = "one-to-one")
+
+
+# emissions Per UPT and per passenger miles
+efficiency <- energy_service |>
+  mutate(total_sum = rowSums(pick(starts_with("Gallons"),
+                                  starts_with("Kilowatt"),
+                                  starts_with("Kilograms"))),
+         per_upt     = total_sum / total_upt,
+         per_pass_mi = total_sum / sum_passenger_miles) |>
+  filter(total_upt > 0, sum_passenger_miles > 0) |>
+  select(AGENCY, Mode, state, per_upt, per_pass_mi)
+
+efficiency
 
 ```
+
+
+
 
 
 ## Awards Metrics
 There are two awards I want to give out: The greenest agencies, and the worst polluters. 
+
 The Greenest Agencies are the ones that have the highest use of a combination of bio diesel, electric, and hydrogen. The Worst polluters are the opposite: these agencies use more non-renewable fuels (Bunker Fuel, Compressed natural Gas, Diesel, Ethanol, Gasoline, Kerosene, Liquified Natural Gas, and Liquified Petroleum Gas). 
+
+I chose bio diesel, electric, and hydrogen to be the markers of "green" fuels because these are renewable and/or biodegradable fuel sources. I'm not familiar with fuel sources in general so I had to do some quick searches on each fuel source in this dataset to be more certain about the renewability of each source. 
+
+It's in a similar vein as to how I chose Bunker Fuel, Compressed natural Gas, Diesel, Ethanol, Gasoline, Kerosene, Liquified Natural Gas, and Liquified Petroleum Gas to be the non-renewable, and thus, the "not green", fuel sources. While Bunker Fuel, Compressed natural Gas, Diesel, Gasoline, Liquified Natural Gas, and Liquified Petroleum Gas are obviously not "green", the "green-ness" Ethanol and Kerosene are more dependent on how these fuels are processed and produced (emissions from production), so I decided to put these into the same category as the other non green fuels.
 
 ```{r}
 #highest use of a combination of bio diesel, electric, and hydrogen; 
@@ -569,8 +619,8 @@ Code related to the final deliverable of the assignment goes here.
 
 ::: {.callout-note title="AI Usage Statement" collapse="true"}
 
-Gemini was used for coding help on EDA - NTD Energy Usage, prompts 1 and 2 for summing across columns.
-
+Gemini was used for coding help on EDA - NTD Energy Usage, prompts 1 and 2 for summing across columns, formatting across columns.
+Claude was used for Task 6 to fix duplicate rows.
 :::
 
 ------------------------------------------------------------------------
