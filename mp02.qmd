@@ -14,8 +14,11 @@ execute:
 
 ## Introduction
 
-A suitable introduction goes here. In this mini-project, I intend to demonstrate
-my skills at Data Integration/Data Visualization in an analysis of Transit/Environmetrics data.
+In this mini-project, I intend to demonstrate my skills at Data Integration/Data Visualization in an analysis of Transit/Environmetrics data.
+
+...
+
+And at the end of my analysis, I will give awards to the greenest agency, and the worst polluting agency.
 
 ## Data Acquisition and Preparation
 
@@ -251,7 +254,7 @@ NTD_ENERGY <- NTD_ENERGY |>
 ## Exploratory Analysis
 
 
-1. The 5 states that have the most expensive retail electricity are listed in the table below:
+1. The 5 states that have the most expensive retail electricity are listed in the graph below:
 ``` {r}
 library(scales)
 
@@ -263,9 +266,17 @@ expensive_electricity <- EIA_SEP_REPORT |>
   head(5) 
 
 ggplot(expensive_electricity, aes(x = state, y=electricity_price_MWh )) +
-  geom_col()
+  geom_col() +
+  labs(title = "Most Expensive Retail Electricity",
+       subtitle = "Top five states and Electricity Price",
+       x = "State",
+       y = "Electricity Price per MWh")
+  
 
 ```
+It's not surprising to see Hawaii is the state with the most expensive electricity prices. It's far out in the Pacific Ocean, they use petroleum, and, after a quick search, the petroleum they rely on is imported. 
+Another no surprise is California. After another search, electric companies in California invest heavily in wildfire prevention and maintaining aging infrastructure, and the costs of that are passed on to customers. It's no wonder why Pacific Gas & Electric customers (from Humboldt in NorCal to Santa Barbara in SoCal) are outraged at PG&E's audacity to increase prices despite their constant outages, having caused an explosion in San Bruno, CA in 2011, and causing wildfires.
+
 
 
 
@@ -276,10 +287,23 @@ library(gt)
 
 dirtiest <- EIA_SEP_REPORT |>
   arrange(desc(CO2_MWh)) |> 
-  head(5)
-dirtiest |> gt()
+  head(5) |> select(-abbreviation)
+
+dirtiest |> gt() |>
+  tab_header(title="Dirtiest Electricity Mix") |>
+  cols_label(
+    primary_source = "Source",
+    electricity_price_MWh  = "Electricity Price per MWh", 
+    state = "State",
+    generation_MWh = "Generation per MWh",
+    CO2_MWh = "CO2 per MWh"
+    
+  )
+  
 
 ```
+Again another no big surprise that the states with the dirtiest mix are states that use coal. WV and KY are definitely the states that come to mind when thinking of coal mining. After a quick search, I discovered that Wyoming is the largest coal-producing state in the US and while Missouri is not currently a coal mining state, it was historically. And again Hawaii is there from their reliance on petroleum.
+
 
 
 The three rarest primary energy sources in the US are listed below
@@ -296,9 +320,20 @@ rarest_sources <- EIA_SEP_REPORT |>
 rarest_sources |> 
   inner_join(EIA_SEP_REPORT, join_by(primary_source)) |> 
   select(primary_source, electricity_price_MWh, state) |> 
-  gt()
+  gt() |>
+  tab_header(title="Rarest Primary Energy Sources") |>
+  cols_label(
+    primary_source = "Source",
+    electricity_price_MWh  = "Electricity Price per MWh", 
+    state = "State"
+  )
 
 ```
+It's not that surprising that hydroelectric is one of the rarest, as that seems to be more geographically-driven. I can't imagine the deserts or the mountainous areas to have a lot of hydroelectricity generation. 
+I did some quick searches into Idaho and Vermont's usage of hydroelectric, and these states have dams and rivers that generate about 46% and 51% of each state's electricity respectively. And of course Oregon and Washington have tons fo rivers running through each state.
+I **am** surprised that wind is rare, because wind in general is everywhere even the deserts in California. 
+Another big surprise is the petroleum use in Hawaii. For a state surrounded by water and with so much ocean breezes, I'm surprised that wind and hydroelectric aren't utilized more. Or even solar. But I guess limited land space limits their capacity for wind farms.
+
 
 
 
@@ -363,18 +398,31 @@ least_common_fuel
 
 
 
-The five transit services that have the most UPT annualy are :
+The five transit services that have the most UPT annually are :
 ```{r}
+
 
 library(dplyr)
 
 # 1.Which five transit services have the most UPT annually? (Graph)
 most_upt <- NTD_SERVICE |> 
   arrange(desc(total_upt)) |> 
-  mutate(across(where(is.numeric), label_comma())) |>
   head(5) 
+most_upt
 
-ggplot(most_upt, aes(x=AGENCY, y=total_upt)) + geom_col()
+ggplot(most_upt, aes(x=AGENCY, y=total_upt)) + 
+  geom_col()+ 
+  scale_y_continuous(labels = label_comma())+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))+
+
+  labs(title = "Transit Services with the Most Annual Ridership",
+       subtitle = "Top five agency and mode combinations by unlinked passenger trips, 2025",
+       x = "Agency",
+       y = "Unlinked passenger trips (UPT)",
+       caption = "Source: National Transit Database, 2025 Service by Agency")+
+   scale_x_discrete(labels = scales::label_wrap(15))
+
+
 
 ```
 
@@ -408,6 +456,7 @@ ggplot(fewest_pub_transit,
 The dataset also included data from US territories including American Samoa, Guam, Northern Mariana Islands, and US Virgin Islands.
 Of the 50 states, Wyoming had 0 public transit passenger miles. After doing some quick searching, Wyoming actually **does** have public transit, so that just means that the actual public transit miles were probably just not recorded for Wyoming.
 The next state with the least public transit miles is South Dakota.
+These numbers and states seems legitimate, as I don't believe these states are known for public transit, neither are they known for being environmentally friendly; but rather known for suburbs and rural areas that are only reachable by private vehicles. 
 
 
 Not all states are represented in the data. 
