@@ -478,8 +478,6 @@ NTD_SERVICE |>
 All states are represented in the data. The only data missing are from DC, and other US island territories. However, Wyoming has a reported 0 miles in public transit miles. It's possible that Wyoming is the state that is not represented in the data, because even though Wyoming is not a state that is well known for public transit, it's not likely that Wyoming has 0 public transit miles.
 
 
-## Task 6
-
 ``` {r}
 
 # NTD_ID originally a string. convert to dbl:
@@ -700,7 +698,6 @@ ggplot() +
 
 
 ```
-# A ‘reference’ value that makes the winner look particularly impressive, e.g. how did the median agency do on that same metric?
 
 I decided to compare Los Angeles (the worst polluting agency) with San Francisco. I chose San Francisco as it's my hometown and I am very familiar with the bus and public transit system, and because San Francisco is more known for its public transit system than Los Angeles is so I thought this would be interesting to compare a city with a widespread and widely used system versus a city that is known for suburban sprawl and car dependency. 
 
