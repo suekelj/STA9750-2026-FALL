@@ -16,9 +16,9 @@ execute:
 
 In this mini-project, I intend to demonstrate my skills at Data Integration/Data Visualization in an analysis of Transit/Environmetrics data.
 
-...
+I will be analyzing data from the US Energy Information Administration, and the US Department of Transportation. The analysis will include states and their fuel usage, public transit agencies across the country and analyze their fuel usage and passenger miles, and ridership comparisons.
 
-And at the end of my analysis, I will give awards to the greenest agency, and the worst polluting agency.
+At the end of my analysis, I will give awards to the greenest agency, and the worst polluting agency.
 
 ## Data Acquisition and Preparation
 
@@ -254,7 +254,7 @@ NTD_ENERGY <- NTD_ENERGY |>
 ## Exploratory Analysis
 
 
-1. The 5 states that have the most expensive retail electricity are listed in the graph below:
+The 5 states that have the most expensive retail electricity are listed in the graph below:
 ``` {r}
 library(scales)
 
@@ -363,10 +363,12 @@ most_fuel_agencies |> gt()
 #most_fuel_agencies_totals <- most_fuel_agencies |> select(`Agency Name`, total) |> gt()
 
 ```
+These five agencies used the most gallons of fuel of all sources.
+The top agency to use the most fuel is NJT, followed very closely by New York MTA.The next agency to use the most fuel is LA County MTA with almost ten million gallons less than NY MTA. 
+These agencies also happen to be the ones that move the most people, and thus have large bus and rail fleets that use more fuel. 
 
 
 
-The least commonly used fuel source for US public transit is :
 ```{r}
 #3. What is the least commonly used fuel source for US public transit? (Inline)
 least_common_fuel <- NTD_ENERGY |> 
@@ -396,6 +398,8 @@ least_common_fuel
 
 ```
 
+The least commonly used fuel source for US public transit is `{r} least_common_fuel`. I did some light searching again and found that while liquefied natural gas (LNG) is not a less common fuel source in general, I can see how it can be so for public transit in the US. LNG requires specialized cooling and infrastructure which limits its use.
+
 
 
 The five transit services that have the most UPT annually are :
@@ -410,21 +414,22 @@ most_upt <- NTD_SERVICE |>
   head(5) 
 most_upt
 
+
 ggplot(most_upt, aes(x=AGENCY, y=total_upt)) + 
   geom_col()+ 
   scale_y_continuous(labels = label_comma())+
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))+
-
   labs(title = "Transit Services with the Most Annual Ridership",
        subtitle = "Top five agency and mode combinations by unlinked passenger trips, 2025",
        x = "Agency",
        y = "Unlinked passenger trips (UPT)",
-       caption = "Source: National Transit Database, 2025 Service by Agency")+
+       caption = "Source: National Transit Database, 2025 Service by Agency" ) +
    scale_x_discrete(labels = scales::label_wrap(15))
 
 
 
 ```
+
 
 
 The five states that have the fewest total miles travelled by public transit are:
@@ -459,7 +464,6 @@ The next state with the least public transit miles is South Dakota.
 These numbers and states seems legitimate, as I don't believe these states are known for public transit, neither are they known for being environmentally friendly; but rather known for suburbs and rural areas that are only reachable by private vehicles. 
 
 
-Not all states are represented in the data. 
 
 ```{r}
 #5. Are all states represented in this data? If no, which ones are missing? 
@@ -471,6 +475,7 @@ NTD_SERVICE |>
   distinct()
 
 ```
+All states are represented in the data. The only data missing are from DC, and other US island territories. However, Wyoming has a reported 0 miles in public transit miles. It's possible that Wyoming is the state that is not represented in the data, because even though Wyoming is not a state that is well known for public transit, it's not likely that Wyoming has 0 public transit miles.
 
 
 ## Task 6
@@ -645,31 +650,69 @@ least_green <- fuel_totals |>
        `Fuel Use Difference`=comma(`Fuel Use Difference`))
 
 worst_polluter <- least_green |> head(1)
-#worst_polluter
+worst_polluter
 
+polluter_agency <- worst_polluter |> pull(`Agency Name`)
 polluter_green_use <- worst_polluter |> pull(`Green Fuels`)
 polluter_not_green_use <- worst_polluter |> pull(`Not Green Fuels`)
 polluter_diff <- worst_polluter |> pull(`Fuel Use Difference`)
 
+
 ```
 
-The award for Worst Polluter goes to `{r} worst_polluter`, with only `{r} polluter_green_use` gallons of green fuels used and `{r} polluter_not_green_use` gallons of non green fuels used. With a difference of `{r} polluter_diff` gallons between green and non green fuels, `{r} worst_polluter` is the worst polluter because it uses much more non green fuels than green fuels. 
+The award for Worst Polluter goes to `{r} polluter_agency`, with only `{r} polluter_green_use` gallons of green fuels used and `{r} polluter_not_green_use` gallons of non green fuels used. With a difference of `{r} polluter_diff` gallons between green and non green fuels, `{r} polluter_agency` is the worst polluter as it uses much more non green fuels than green fuels. 
 
 
 ## Final Insights and Deliverable
 
-Code related to the final deliverable of the assignment goes here. 
+
+```{r}
+top_5 <- greenest_agencies |> head(5) |> 
+  mutate(across(where(is.character), parse_number))
+
+ggplot(top_5, aes(x=`Agency Name`, y=`Fuel Use Difference`)) + 
+  geom_col()+scale_y_continuous(labels = label_comma())+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))+
+  labs(title = "Five Greenest Agencies",
+       subtitle = "The five greenest agencies in the US",
+       x = "Agency",
+       y = " Fuel Use Difference")+
+   scale_x_discrete(labels = scales::label_wrap(15))
 
 
 
+sf_compare <- fuel_totals |> 
+  filter( str_detect(`Agency Name`,"San Francisco") & Mode == "Bus") |> 
+  mutate(`Fuel Use Difference` = `Not Green Fuels` - `Green Fuels`)
 
+la_compare <- worst_polluter |> mutate(across(where(is.character), parse_number))
+
+
+ggplot() +
+  geom_col(data = la_compare, aes(x = `Agency Name`, y = `Fuel Use Difference`), fill = "blue") +
+  geom_col(data = sf_compare, aes(x = `Agency Name`, y = `Fuel Use Difference`), fill = "red", alpha = 0.5) + 
+  scale_y_continuous(labels = label_comma())+
+  labs(title = "Los Angeles vs. San Francisco Bus Pollution Comparison",
+       subtitle = "Comparing Fuel Use Difference Between LA and SF Buses",
+       caption="Source: eia.dot.gov, transit.dot.gov, US DOT",
+       x = "Agency",
+       y = "Fuel Use Difference")
+
+
+```
+# A ‘reference’ value that makes the winner look particularly impressive, e.g. how did the median agency do on that same metric?
+
+I decided to compare Los Angeles (the worst polluting agency) with San Francisco. I chose San Francisco as it's my hometown and I am very familiar with the bus and public transit system, and because San Francisco is more known for its public transit system than Los Angeles is so I thought this would be interesting to compare a city with a widespread and widely used system versus a city that is known for suburban sprawl and car dependency. 
+
+San Francisco buses are usually hybrid vehicles, with about half of the bus models using overhead wires as power and a new generation battery-powered models. Perhaps it's because the buses in San Francisco are hybrid electric or battery operated, it's not so surprising to see that the green and non-green fuel difference is so low compared to Los Angeles. As mentioned previously, fuel difference is calculated as non-green fuel use minus green fuel use. 
 
 
 
 ::: {.callout-note title="AI Usage Statement" collapse="true"}
 
 Gemini was used for coding help on EDA - NTD Energy Usage, prompts 1 and 2 for summing across columns, formatting across columns.
-Claude was used for Task 6 to fix duplicate rows.
+Claude was used for Task 6 to fix duplicate rows, fixing graphics.
+
 :::
 
 ------------------------------------------------------------------------
