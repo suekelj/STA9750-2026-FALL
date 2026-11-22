@@ -1,7 +1,739 @@
+---
+title: "Mini-Project 03 - Where My People At?"
+author: "suekelj"
+editor:
+    mode: source
+format:
+    html:
+        toc: true
+        code-fold: true
+execute: 
+    warning: false
+---
 
-  ---
-  title: "Mini-Project Placeholder"
-  ---
+## Introduction
+
+A suitable introduction goes here. In this mini-project, I intend to demonstrate
+my skills at Data Import/API Usage/File Parsing in an analysis of Census Data/Migration Flows data.
+
+## Data Acquisition and Preparation
+
+
+Task 1: CBSA-level ACS-1 
+```{r}
+
+library(tidycensus)
+library(tidyverse)
+library(sf)
+library(fs)
+
+library(scales)
+library(gt)
+
+
+
+DATA_DIR <- fs::path("data", "mp03")
+fs::dir_create(DATA_DIR, recurse = TRUE)
+
+# Task 1: CBSA-level ACS-1 (no geometry needed unless you plan to map CBSAs)
+get_cbsa_pop <- function(year = 2024) {
+  cbsa_file <- fs::path(DATA_DIR, "cbsa_pop.csv")
   
-  This is a placeholder for STA9750 Mini-Project 3. Check back soon for more!
+  if (!fs::file_exists(cbsa_file)) {
+    get_acs(
+      geography = "cbsa",
+      variables = c(korean = "B02018_005", total = "B01003_001"),
+      year      = year,
+      survey    = "acs1",
+      output    = "wide"
+    ) |>
+      select(GEOID, NAME, korean = koreanE, total = totalE) |>
+      write_csv(cbsa_file)
+  }
   
+  read_csv(cbsa_file, col_types = cols(GEOID = col_character()))
+}
+
+get_ko <- function(year = 2024) {
+  tract_file <- fs::path(DATA_DIR, "cbsa_pop_ko.csv")
+  
+  if (!fs::file_exists(tract_file)) {
+    get_acs(
+      geography="cbsa",
+      variables = c(korean = "B02018_005", total = "B01003_001"),
+      year      = year,
+      survey    = "acs5",
+      output    = "wide",
+      geometry  = TRUE
+    ) |> write_sf( tract_file )
+  }
+  
+  read_sf(tract_file)
+}
+ko <- get_ko()
+
+```
+
+
+Task 2: NYC tract-level ACS-5 with geometry
+```{r}
+get_nyc_tracts <- function(year = 2024) {
+  tract_file <- fs::path(DATA_DIR, "nyc_tracts.gpkg")
+  
+  if (!fs::file_exists(tract_file)) {
+    get_acs(
+      geography = "tract",
+      state     = "NY",
+      county    = c("005", "047", "061", "081", "085"),  # Bronx, Kings, New York, Queens, Richmond
+      variables = c(korean = "B02018_005", total = "B01003_001"),
+      year      = year,
+      survey    = "acs5",
+      output    = "wide",
+      geometry  = TRUE
+    ) |>
+      select(GEOID, NAME, korean = koreanE, total = totalE) |>
+      write_sf(tract_file)
+  }
+  
+  read_sf(tract_file)
+}
+
+cbsa_pop   <- get_cbsa_pop()
+nyc_tracts <- get_nyc_tracts()
+
+```
+
+
+Task 3 - acquisition
+```{r}
+load_nyc_nta <- function() {
+  
+  library(httr2)
+  library(tidyverse)
+  library(fs)
+  library(sf)
+  
+  # 1. Create 'data/mp03' directory if not already present
+  DATA_DIR <- fs::path("data", "mp03")
+  fs::dir_create(DATA_DIR, recurse = TRUE)
+  
+  # Source URL and local paths
+  nta_url <- "https://s-media.nyc.gov/agencies/dcp/assets/files/zip/data-tools/bytes/neighborhood-tabulation-areas/nynta2020_26c.zip"
+  zip_file <- fs::path(DATA_DIR, "nynta2020_26c.zip")
+  unzip_dir <- fs::path(DATA_DIR, "nynta2020_26c")
+  
+  # 2. Download only if the zip is not already present
+  if (!fs::file_exists(zip_file)) {
+    request(nta_url) |>
+      req_perform(path = zip_file)
+  }
+  
+  # 3. Unzip only if not already unzipped
+  if (!fs::dir_exists(unzip_dir)) {
+    unzip(zip_file, exdir = unzip_dir)
+  }
+  
+  # 4. Find and read the .shp file as an sf object
+  shp_file <- fs::dir_ls(unzip_dir, recurse = TRUE, regexp = "\\.shp$")[1]
+  nta <- sf::st_read(shp_file, quiet = TRUE)
+  
+  # 5. Drop columns that aren't helpful
+  #nta <- nta |>
+  #  select(NTA2020, NTAName, BoroName, CDTA2020, CDTAName, geometry)
+  
+  # 6. Return the sf object
+  nta
+}
+
+```
+
+
+
+Task 4
+```{r}
+
+# Put both layers in the same projected CRS (EPSG:2263 = NY Long Island, feet)
+# st_join needs matching CRSs, and feet will also help with area calculations later.
+nta    <- load_nyc_nta() |> st_transform(2263)
+tracts <- nyc_tracts     |> st_transform(2263)
+
+# Assign each tract to the NTA it overlaps most (largest = TRUE avoids duplicate rows).
+# Only keep the NTA ID from the NTA table so we don't drag extra columns along.
+tract_to_nta <- st_join(
+  tracts,
+  nta |> select(NTA2020),
+  join    = st_intersects,
+  largest = TRUE
+)
+
+# Drop geometry, then summarize to the NTA level
+nta_pop <- tract_to_nta |>
+  st_drop_geometry() |>
+  filter(!is.na(NTA2020)) |>
+  group_by(NTA2020) |>
+  summarize(
+    n_tracts  = n(),
+    total_pop = sum(total, na.rm = TRUE),
+    korean    = sum(korean, na.rm = TRUE),
+    .groups   = "drop"
+  ) |>
+  mutate(korean_pct = if_else(total_pop > 0, korean / total_pop, NA_real_))
+
+
+# Reconnect to the NTA geometry
+nta_pop_sf <- nta |>
+  left_join(nta_pop, by = "NTA2020")
+
+```
+
+
+Task 5
+```{r}
+
+
+
+load_nyc_pluto <- function(page_size = 50000) {
+  
+  library(httr2)
+  
+  # Create 'data/mp03' directory if not already present
+  DATA_DIR <- fs::path("data", "mp03")
+  fs::dir_create(DATA_DIR, recurse = TRUE)
+  
+  pluto_file <- fs::path(DATA_DIR, "nyc_pluto.csv")
+  
+  # 1. Only download if there is no cached copy
+  if (!fs::file_exists(pluto_file)) {
+    
+    base_url <- "https://data.cityofnewyork.us/resource/64uk-42ks.csv"
+    
+    # Only request columns we will need (keeps the download much smaller)
+    keep_cols <- c(
+      "bbl", "borough", "bct2020", "landuse", "zonedist1",
+      "lotarea", "bldgarea", "comarea", "resarea", "officearea",
+      "retailarea", "unitsres", "unitstotal", "numbldgs", "numfloors"
+    )
+    
+    # 2. Page through the API with $limit and $offset
+    pages  <- list()
+    offset <- 0
+    
+    repeat {
+      page <- request(base_url) |>
+        req_url_query(
+          `$select` = paste(keep_cols, collapse = ","),
+          `$order`  = "bbl",       # stable ordering so pages don't overlap or skip rows
+          `$limit`  = page_size,
+          `$offset` = offset
+        ) |>
+        req_retry(max_tries = 3) |>
+        req_perform() |>
+        resp_body_string() |>
+        # read everything as character so column types can't conflict between pages
+        read_csv(col_types = cols(.default = col_character()))
+      
+      pages[[length(pages) + 1]] <- page
+      
+      # A short (or empty) page means we've reached the end of the data set
+      if (nrow(page) < page_size) break
+      
+      offset <- offset + page_size
+      Sys.sleep(0.5)               # be polite to the server
+    }
+    
+    # 3. Combine all pages
+    pluto <- bind_rows(pages)
+    
+    # 4. Save the combined data set for later use
+    write_csv(pluto, pluto_file)
+  }
+  
+  # Read from the local copy (types are guessed, except the ID columns)
+  read_csv(
+    pluto_file,
+    col_types = cols(
+      bbl     = col_character(),
+      bct2020 = col_character(),
+      .default = col_guess()
+    )
+  )
+}
+
+pluto <- load_nyc_pluto()
+
+```
+
+
+## Exploratory Analysis
+
+Task 6
+
+1. 
+```{r}
+
+office_area_by_tract <- pluto |> 
+  group_by(bct2020) |> 
+  summarize(total_officearea = sum(officearea, na.rm=TRUE)) |> 
+  slice_max(total_officearea)
+office_area_by_bct <- office_area_by_tract |> pull(bct2020)
+
+```
+The tract that has the most office floor area in New York City is tract `{r} office_area_by_bct`. 
+After a quick search, I believe this tract is in the Financial District, which makes sense as FiDi has many highrises that are mostly for office/commercial purposes.
+
+
+
+
+2. 
+```{r}
+
+res_units <- pluto |> 
+  select(borough, bct2020, unitsres) |>
+  group_by(bct2020) |>
+  summarize(total_resunits = sum(unitsres, na.rm=TRUE)) 
+res_units |> slice_max(total_resunits)
+#################### fix this; NTA not BCT
+
+```
+
+
+3. 
+```{r}
+
+# task 6, q3
+#  NYC census tract has highest population density, 
+# population per square foot of residential space? 
+# population per residential unit?
+res_minimum <- 100
+
+pluto_tracts <- pluto |>
+  filter(!is.na(bct2020)) |>
+  mutate(
+    county_fips = case_match(
+      str_sub(bct2020, 1, 1),
+      "1" ~ "061",   # Manhattan (New York County)
+      "2" ~ "005",   # Bronx
+      "3" ~ "047",   # Brooklyn (Kings)
+      "4" ~ "081",   # Queens
+      "5" ~ "085"    # Staten Island (Richmond)
+    ),
+    GEOID = paste0("36", county_fips, str_sub(bct2020, 2, 7))
+  ) |>
+  group_by(GEOID)
+
+
+tract_housing <- nyc_tracts |>
+  left_join(pluto_tracts, by = "GEOID")
+#tract_housing
+
+tract_density <- tract_housing |>
+  st_drop_geometry() |>
+  filter(total > 0, resarea > res_minimum, unitsres > res_minimum) |>
+  mutate(
+    pop_per_sqft = total / resarea,
+    pop_per_unit = total / unitsres
+  )
+
+# Highest density by residential square footage
+density_by_resarea <- tract_density |>
+  slice_max(pop_per_sqft, n = 5) |>
+  select(GEOID, NAME, total, resarea, pop_per_sqft)
+#density_by_resarea
+
+# Highest density by residential unit
+density_by_unitsres <- tract_density |>
+  slice_max(pop_per_unit, n = 5) |>
+  select(GEOID, NAME, total, unitsres, pop_per_unit) |> distinct()
+#density_by_unitsres
+
+top_density_resarea <- density_by_resarea |> slice_max(pop_per_sqft) |> pull(NAME)
+top_density_resarea
+top_density_unitsres <- density_by_unitsres |> slice_max(pop_per_unit) |> pull(NAME)
+top_density_unitsres
+
+```
+I made some filters for this prompt. I filtered the total to be greater than 0 to filter for tracts that residents actually live in. Residential space and residential units also must exists, so I had to filter for tracts that have res space and res units greater than 0. The original results using the aforementioned filters of "greater than 0" showed tracts with 
+res units of 1 which is probably not likely, so I decided to increase both resunits and resarea to `{r} res_minimum`. The results of which are displayed in the table above. 
+
+The densest tract by population per sq foot of residential space is `{r} top_density_resarea` and the densest tract by population per residential units was `{r} top_density_unitsres`.
+
+Using censusreporter.org, `{r} top_density_resarea` is right in the middle of Washington Heights, bounded by Fort Washington Ave., Saint Nicholas Ave, W 158th st, and W 165th st, and `{r} top_density_unitsres` is Lincoln Center, bounded by Amsterdam Ave, Central Park West, W 66th st, and W 62nd st.
+
+The final results I got could have been slightly skewed by my filters, but these tracts still seem to make sense. 
+Both tracts are quite dense in general, but residential square footage in Washington Heights is probably small, and there are probably less residential units in Lincoln Center. 
+
+
+
+
+4. 
+```{r}
+
+korean_metros <- ko |> mutate(across(c(koreanE, totalE), as.numeric)) |>
+  mutate(`Korean Population` = koreanE) |> 
+  mutate(`Total Population` =totalE) |>
+  select(-koreanM, -koreanE, -totalE, -totalM) |> 
+  filter(str_detect(NAME, "Metro")) |>
+  mutate(`Share of Koreans %` = `Korean Population` / `Total Population`) |> 
+  arrange(desc(`Share of Koreans %`)) |>
+  head(5) 
+
+korean_metros |> mutate(`Korean Population` = comma(`Korean Population`), 
+                        `Total Population`  = comma(`Total Population`),
+                        `Share of Koreans %` = percent(`Share of Koreans %`, accuracy=.01)) |> gt()
+```
+The table above shows the five metro areas that have the largest share of Koreans. The shares was calculated by dividing the 
+estimate of Koreans in the metro area by the total population of the metro area.
+I was suspicious to not see the NY metro area in the top 5, as I thought I would have to filter out NY, so I increased the head amount to 25 and while the population of Koreans in NY metro was the second highest (after Los Angeles), the share of Koreans was too low to have made it onto the top 5 metros table.
+
+
+5. 
+```{r}
+
+# q5 describe the distribution of ancestries 
+# in a large non-NYC city of your choosing from the previous question
+
+sjc <- get_acs(
+  geography="place",
+  state = "CA",
+  variables = c(
+    Hispanic = "B03002_012",
+    White = "B03002_003",
+    Black = "B03002_004",
+    Native_American = "B03002_005",
+    Asian = "B03002_006",
+    Pacific_Islander = "B03002_007",
+    Other = "B03002_008",
+    Two_or_more = "B03002_009"
+  ),
+  year = 2024
+) |> filter(str_detect(NAME, "San Jose city")) |>
+  select(-moe, -GEOID)
+
+sjc |> mutate(estimate = comma(estimate)) |> gt()
+```
+
+The table above shows the distribution of ancestries in San Jose, California. I chose San Jose because as a San Francisco native, I feel most comfortable and qualified to make observations of the different ancestries that make up the Bay Area. The ACS data seems accurate. White, Asian, and Hispanic are definitely the largest groups in the bay. 
+
+Since the Bay Area is so large and there are so many different ethnicities, I wanted to further breakdown the Asian American group, as I am more familiar with the Asian community and because the tech industry in the bay attracts Asians born in the US as well as those born overseas.
+
+```{r}
+
+# Q5 continued; asian ancestry breakdown ; sj
+
+sjc_breakdown <- get_acs(
+  geography="place",
+  state = "CA",
+  variables = c(
+    `Asian Indian`      = "B02015_021",
+    `Chinese excl Taiwanese` = "B02015_002",
+    Taiwanese              = "B02015_008",
+    Filipino    = "B02015_012",
+    Korean      = "B02015_005",
+    Vietnamese  = "B02015_019"
+  ),
+  year = 2024
+) |> filter(str_detect(NAME, "San Jose city")) |>
+  select(-moe, -GEOID)
+
+sjc_breakdown |> arrange(desc(estimate)) |> mutate(estimate = comma(estimate)) |> gt()
+```
+The original variables I used for Filipinos and Vietnamese were obviously wrong as the amount of Vietnamese and Filipinos were much too low so I had to do a few quick searches and I finally found the correct variables:
+Filipino    = "B02015_012",
+Vietnamese  = "B02015_019"
+
+As the table shows, the Vietnamese population in SJ is in the six digits. If I remember correctly, the Vietnamese population in SJ is the highest in the country. The Filipino population is also quite high, but not the highest in the country or even in California. The crown for that goes to Daly City, CA, a suburban town just south of San Francisco.
+
+I was surprised to see Taiwanese was so much lower compared to the other groups. I made another quick search and found that most Taiwanese Bay Area residents live in Fremont and Cupertino.
+
+
+
+I wanted to map out the ancestry of San Jose residents. 
+The map below shows the largest population groups by census tract in San Jose. 
+
+```{r}
+# Q 5 continued; map of largest population groups in San Jose, CA
+
+ggplot(sjc, aes(x = reorder(variable, estimate), y = estimate)) +
+  geom_col() +
+  coord_flip() +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(
+    title = "Population of San Jose by Group",
+    x = NULL, y = "Residents",
+    caption = "Source: ACS 2020-2024 5-year estimates"
+  ) +
+  theme_minimal()
+
+vars <- c(
+  Hispanic = "B03002_012",
+  White = "B03002_003",
+  Black = "B03002_004",
+  Native_American = "B03002_005",
+  Asian = "B03002_006",
+  Pacific_Islander = "B03002_007",
+  Other = "B03002_008",
+  Two_or_more = "B03002_009", 
+  total = "B03002_001"
+)
+
+# Tracts in Santa Clara County (where San Jose is), with geometry
+sj_tracts <- get_acs(
+  geography = "tract", state = "CA", county = "Santa Clara",
+  variables = vars, year = 2024, output = "wide", geometry = TRUE
+)
+
+# San Jose city boundary
+sj_boundary <- get_acs(
+  geography = "place", state = "CA", variables = "B03002_001",
+  year = 2024, geometry = TRUE
+) |>
+  filter(str_detect(NAME, "San Jose city"))
+
+# Keep tracts whose center point falls inside San Jose
+inside <- st_within(st_point_on_surface(sj_tracts), sj_boundary, sparse = FALSE)[, 1]
+sj_tracts <- sj_tracts[inside, ]
+
+# Find the largest group in each tract
+groups <- c("Hispanic", "White", "Black", "Asian")
+counts <- st_drop_geometry(sj_tracts)[paste0(groups, "E")]
+sj_tracts$largest_group <- groups[max.col(counts, ties.method = "first")]
+
+ggplot(sj_tracts) +
+  geom_sf(aes(fill = largest_group), color = "white", linewidth = 0.1) +
+  scale_fill_brewer(palette = "Set2", name = "Largest group") +
+  labs(
+    title = "Largest Population Group by Census Tract, San Jose, CA",
+    caption = "Source: ACS 2020-2024 5-year estimates"
+  ) +
+  theme_void()
+```
+
+The results seem accurate as, again, these three groups are the largest racial groups in the Bay Area, particularly the South Bay (which includes San Jose, Santa Clara, and Sunnyvale), the Peninsula (which is the strip of land that connects the South Bay to San Francisco), and San Francisco.
+
+The large green patch in the north that's just under the large orange patch represents Asian Americans. 
+This patch I know for sure is accurate because I have relatives that live in a small town just northeast of the green patch called Milpitas that's really only well known for its landfill and its large strip malls filled mostly with Chinese and Vietnamese restaurants and supermarkets.
+Another Asian majority tract is the one that's on the far west side. This tract borders another small town that I also have relatives in called Cupertino, which is famously the headquarter of Apple. A quick search confirms that these areas do indeed have an Asian residence majority of at least 70%.
+
+
+6. 
+```{r}
+
+koreans_us <- get_acs(
+  geography="us",
+  variables = c(
+    ko = "B02018_005", 
+    total = "B01003_001"), 
+  year = 2024, 
+  output="wide"
+) |> mutate(percent_koreans_in_us = koE / totalE)
+percent_ko_us <- koreans_us |> pull(percent_koreans_in_us) |> percent(accuracy=.001)
+
+koreans_ny <- get_acs(
+  geography="state",
+  state="NY",
+  variables = c(
+    ko = "B02018_005", 
+    total = "B01003_001"), 
+  year = 2024, 
+  output="wide"
+) |> mutate(percent_koreans_in_ny = (koE) / totalE)
+percent_ko_ny <- koreans_ny |> pull(percent_koreans_in_ny) |> percent(accuracy=.001)
+```
+
+The percentage of Koreans that live in the US is `{r} percent_ko_us` and the percentage of Koreans that live in New York state is `{r} percent_ko_ny`. The percentage of Koreans in NY state are only slightly higher than in the US. I was already expecting a low percentage for NY, because the percentage of Koreans in the NY metro was also quite low so it was not a surprise to me. 
+
+
+
+7.
+```{r}
+
+pluto_tracts <- pluto |>
+  filter(!is.na(bct2020)) |>
+  mutate(
+    county_fips = case_match(
+      str_sub(bct2020, 1, 1),
+      "1" ~ "061",   # Manhattan (New York County)
+      "2" ~ "005",   # Bronx
+      "3" ~ "047",   # Brooklyn (Kings)
+      "4" ~ "081",   # Queens
+      "5" ~ "085"    # Staten Island (Richmond)
+    ),
+    GEOID = paste0("36", county_fips, str_sub(bct2020, 2, 7))
+  ) |>
+  group_by(GEOID) |>
+  summarize(
+    across(c(unitsres, unitstotal, resarea, comarea, officearea, bldgarea),
+           \(x) sum(x, na.rm = TRUE)),
+    max_floors = max(numfloors, na.rm = TRUE),
+    .groups = "drop"
+  ) |> mutate(max_floors = if_else(is.infinite(max_floors), NA_real_, max_floors))
+
+
+library(ggplot2)
+library(ggpubr)
+library(scales)
+ggplot(tract_housing, aes(x=total, y=resarea)) + 
+  geom_point() + geom_smooth() + stat_cor(method = "pearson") + 
+  scale_y_continuous(labels = label_comma())+
+  scale_x_continuous(labels = label_comma())
+
+ggplot(tract_housing, aes(x=total, y=unitsres)) + 
+  geom_point() + geom_smooth() + stat_cor(method = "pearson") + 
+  scale_y_continuous(labels = label_comma())+
+  scale_x_continuous(labels = label_comma())
+
+
+```
+
+
+
+
+
+
+
+
+
+8.
+```{r}
+# 8 What are the NTAs with highest buildings? (use PLUTO’s numfloors variable as a measure of height.
+# table 2
+tall_building <- 25
+pluto |> select(borough, bct2020, numfloors) |> 
+  filter(numfloors > tall_building) |> 
+  group_by(bct2020) |> 
+  summarize(total = n()) |>
+  arrange(desc(total)) |> head(10)
+
+    
+```    
+
+
+
+
+
+
+
+9.
+```{r}
+
+
+# 9 Visualize how population density varies across NYC?
+
+sqft_to_sqmi <- 27878400
+
+nta_density <- nta_pop_sf |>
+  mutate(
+    area_sq_mi  = as.numeric(st_area(geometry)) / sqft_to_sqmi,
+    pop_density = total_pop / area_sq_mi
+  )
+#nta_density
+
+ggplot(nta_density) +
+  geom_sf(aes(fill = pop_density), color = "white", linewidth = 0.1) +
+  scale_fill_viridis_c(trans = "log10", name = "Residents per\nsq mile") +
+  labs(
+    title   = "Population Density by NYC Neighborhood",
+    caption = "Source: American Community Survey 2020-2024"
+  ) +
+  theme_void()
+
+nta_density |>
+  st_drop_geometry() |>
+  slice_max(pop_density, n = 50) |>
+  ggplot(aes(x = pop_density, y = reorder(NTAName, pop_density))) +
+  geom_col() +
+  labs(title = "50 Densest NYC Neighborhoods", x = "Residents per sq mile", y = NULL)
+
+
+
+top_density <- nta_density |>
+  slice_max(pop_density, n = 50)
+
+ggplot() +
+  geom_sf(data = nta_density, fill = "grey90", color = "white", linewidth = 0.1) +
+  geom_sf(data = top_density, aes(fill = pop_density), color = "white", linewidth = 0.2) +
+  scale_fill_viridis_c(name = "Residents per\nsq mile") +
+  labs(
+    title   = "50 Densest NYC Neighborhoods",
+    caption = "Source: American Community Survey 2020-2024"
+  ) +
+  theme_void()
+
+geom_sf_text(data = top_density, aes(label = NTAName), size = 2)
+```
+According to the map, Yorkville is the densest NYC neighborhood, which is not surprising given how many residents there are, packed into such a small area of land. It's also not surprising to see Two Bridges, Jackson Heights, and Sunset Park on the map. A quick search confirmed my hypothesis that immigrants tend to stay within neighborhoods that are largely settled by the same immigrant groups, and that immigrants also tend to live in multigenerational homes, or even live in a household with multiple families, thus creating denser living areas. 
+
+At first, I thought I would see Flushing on the map, but thinking about it some more, Flushing is not very dense outside of downtown. It's interesting that Times Square is not one of the 50 densest neighborhoods. Even though hundreds of thousands of people pass through that area, the number of residents who actually live in the area is much lower in comparison. Even though the Times Square area is small, the number of residents is also quite small. 
+
+
+
+
+
+
+
+10.
+```{r}
+pluto |> drop_na() |> mutate(total_com_area = comarea + officearea+retailarea) |> 
+  filter(total_com_area > resarea & resarea > 0) |>
+  select(-landuse, -lotarea, -bldgarea, -zonedist1, -numbldgs, -numfloors)
+
+
+pluto_tracts <- pluto |>
+  filter(!is.na(bct2020)) |>
+  mutate(
+    county_fips = case_match(
+      str_sub(bct2020, 1, 1),
+      "1" ~ "061",   # Manhattan (New York County)
+      "2" ~ "005",   # Bronx
+      "3" ~ "047",   # Brooklyn (Kings)
+      "4" ~ "081",   # Queens
+      "5" ~ "085"    # Staten Island (Richmond)
+    ),
+    GEOID = paste0("36", county_fips, str_sub(bct2020, 2, 7))
+  ) |>
+  group_by(GEOID) |>
+  summarize(
+    across(c(unitsres, unitstotal, resarea, comarea, officearea, bldgarea),
+           \(x) sum(x, na.rm = TRUE)) )
+tract_housing <- nyc_tracts |>
+  left_join(pluto_tracts, by = "GEOID")
+
+nyers_in_com_areas <- tract_housing |> drop_na() |>
+  mutate(total_com_area = comarea + officearea) |> 
+  filter(resarea > 0 & total_com_area > resarea) |> 
+  summarize(sum(total)) |> pull(`sum(total)`) |> comma()
+nyers_in_com_areas 
+
+```
+The number of New Yorkers that live in "primarily commercial" areas is `{r} nyers_in_com_areas`. In my opinion I think this number seems realistic. After a quick search of how many residents live in Times Square (around 6,000) and the surrounding area including Theatre District is double that amount.
+(I used Times Square as my benchmark because TS is in my opinion the most commercial and least livable area in the city. Even former office building strongholds such as the Financial District are starting to become more residential, with the rise of office to residential conversions.) 
+
+For this prompt I also made a table of the top ten most commercial areas to put into perspective what areas these `{r} nyers_in_com_areas` New Yorkers would possibly live in. I made sure to filter for areas that have more commercial spaces (commercial space, office space, and retail space) than residential space, and also to filter for areas that have residential areas greater than 0 (because how else would someone live in that area if the residential area (resarea) were 0?) I used the same filters when finding the number of NYers that live in commercial areas. 
+
+
+
+
+
+## Final Insights and Deliverable
+
+Code related to the final deliverable of the assignment goes here. 
+
+
+
+
+::: {.callout-note title="AI Usage Statement" collapse="true"}
+
+Claude was used for most of tasks 1 to 5.
+Claude was used for completing, joining tables, and refining code in task 6. 
+Gemini was used for miscellaneous formatting.
+
+:::
+
+
+------------------------------------------------------------------------
+
+This work ©2025 by suekelj was initially prepared as a Mini-Project for
+STA 9750 at Baruch College. More details about this course can be found at
+[the course site](https://michael-weylandt.com/STA9750) and instructions for
+this assignment can be found at 
+[MP #03](https://michael-weylandt.com/STA9750/mini/mini03.html)
