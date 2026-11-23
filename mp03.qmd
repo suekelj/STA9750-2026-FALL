@@ -309,7 +309,7 @@ office_area_by_tract <- pluto |>
   summarize(total_officearea = sum(officearea, na.rm=TRUE)) |> 
   slice_max(total_officearea)
 office_area_by_bct <- office_area_by_tract |> pull(bct2020)
-
+office_area_by_bct
 ```
 The tract that has the most office floor area in New York City is tract `{r} office_area_by_bct`. 
 After a quick search, I believe this tract is in the Financial District, which makes sense as FiDi has many highrises that are mostly for office/commercial purposes.
