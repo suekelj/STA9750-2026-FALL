@@ -79,7 +79,7 @@ get_ko <- function(year = 2024) {
 
 ko <- get_ko()
 
-glimpse(ko)
+#glimpse(ko)
 ```
 
 
@@ -319,16 +319,6 @@ After a quick search, I believe this tract is in the Financial District, which m
 
 
 2. 
-```{r}
-
-res_units <- pluto |> 
-  select(borough, bct2020, unitsres) |>
-  group_by(bct2020) |>
-  summarize(total_resunits = sum(unitsres, na.rm=TRUE)) 
-res_units |> slice_max(total_resunits)
-#################### fix this; NTA not BCT
-
-```
 
 ```{r}
 res_units <- pluto |>
@@ -340,7 +330,15 @@ res_units <- pluto |>
 
 res_units |> slice_max(total_resunits)
 
+most_res_nta <- res_units |> slice_max(total_resunits) |> pull(NTA2020)
+most_res_total <- res_units |> slice_max(total_resunits) |> pull(total_resunits) |> comma()
+most_res_name <- res_units |> slice_max(total_resunits) |> pull(NTAName)
+most_res_total
 ```
+The NTA with the most residential units is `{r} most_res_nta` with a total of `{r} most_res_total` residential units. `{r} most_res_nta` is the code for `{r} most_res_name`. This tracks because I have done a little research before about this topic in a previous course. If I remember correctly, former mansion were split up, and the expanding subway lines made it easier for people to move up to Lenox Hill and commute to Midtown and FiDi.
+
+
+
 
 3. 
 ```{r}
@@ -581,34 +579,52 @@ The percentage of Koreans that live in the US is `{r} percent_ko_us` and the per
 
 
 7.
-```{r}
 
+```{r}
 pluto_tracts <- pluto |>
+  filter(!is.na(GEOID)) |>
+  group_by(GEOID) |>  
   summarize(
     across(c(unitsres, unitstotal, resarea, comarea, officearea, bldgarea),
            \(x) sum(x, na.rm = TRUE)),
     max_floors = max(numfloors, na.rm = TRUE),
     .groups = "drop"
-  ) |> mutate(max_floors = if_else(is.infinite(max_floors), NA_real_, max_floors))
+  ) |>
+  mutate(max_floors = if_else(is.infinite(max_floors), NA_real_, max_floors))
 
+# Rebuild tract_housing so it picks up the corrected table
+tract_housing <- nyc_tracts |>
+  left_join(pluto_tracts, by = "GEOID")
 
 library(ggplot2)
 library(ggpubr)
 library(scales)
-ggplot(tract_housing, aes(x=total, y=resarea)) + 
-  geom_point() + geom_smooth() + stat_cor(method = "pearson") + 
-  scale_y_continuous(labels = label_comma())+
-  scale_x_continuous(labels = label_comma())
 
-ggplot(tract_housing, aes(x=total, y=unitsres)) + 
-  geom_point() + geom_smooth() + stat_cor(method = "pearson") + 
-  scale_y_continuous(labels = label_comma())+
-  scale_x_continuous(labels = label_comma())
+plot_data <- tract_housing |>
+  st_drop_geometry() |>
+  filter(total > 0, resarea > 0, unitsres > 0)
+
+ggplot(plot_data, aes(x = total, y = resarea)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth() +
+  stat_cor(method = "pearson") +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(x = "Tract population", y = "Residential floor area (sq ft)")
+
+ggplot(plot_data, aes(x = total, y = unitsres)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth() +
+  stat_cor(method = "pearson") +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(x = "Tract population", y = "Residential units")
+
 
 
 ```
-
-
+Looking at both plots, it seems that there is a rather strong linear relationship between both Residential Units and Tract population, and residential square footage and tract population, since both R values are just over 0.7. 
+Of course there are outliers that could possibly skew the data. The plot of residential floor area by tract population has one significant outlier
 
 
 
@@ -618,29 +634,35 @@ ggplot(tract_housing, aes(x=total, y=unitsres)) +
 
 8.
 ```{r}
-# 8 What are the NTAs with highest buildings? (use PLUTO’s numfloors variable as a measure of height.
-# table 2
-tall_building <- 25
-pluto |> select(borough, bct2020, numfloors) |> 
-  filter(numfloors > tall_building) |> 
+# 8 What are the NTAs with highest buildings?
+
+min_floors <- 25
+
+# tracts with highest buildings
+tall_building_tracts <- pluto |> select(borough, bct2020, numfloors) |> 
+  filter(numfloors > min_floors) |> 
   group_by(bct2020) |> 
   summarize(total = n()) |>
   arrange(desc(total)) |> head(10)
 
-```    
-
-```{r} 
-# 8 test
-
 
 # Tall buildings by NTA
-tall_building <- 25
-pluto |>
-  filter(numfloors > tall_building) |>
+tall_buildings_nta <- pluto |>
+  filter(numfloors > min_floors) |>
   count(NTA2020, sort = TRUE) |>
   head(10)
+tall_buildings_nta
 
-```
+tallest_nta <- tall_buildings_nta |> slice_max(n) |> pull(NTA2020)
+tallest_num_fl <- tall_buildings_nta |> slice_max(n) |> pull(n)
+second_tallest <- tall_buildings_nta[2,] |> slice_max(n) |> pull(NTA2020)
+second_num_fl <- tall_buildings_nta[2,] |> slice_max(n) |> pull(n)
+third_tallest <- tall_buildings_nta[3,] |> slice_max(n) |> pull(NTA2020)
+third_num_fl <- tall_buildings_nta[3,] |> slice_max(n) |> pull(n)
+
+```    
+For this prompt, I made up `{r} min_floors` to be the minimum number of floors to be considered a tall building. The table above shows the NTAs with the most buildings that have at least 25 floors. `{r} tallest_nta` is the NTA with `{r} tallest_num_fl` buildings with 25 floors or more. A quick search reveals that this NTA is Midtown-Times Square in Manhattan, which is definitely not a surprise and in fact assuages all of my worries and doubts as Midtown-Times Square has a high concentration of tall buildings with at least 25 floors.
+The second NTA with the most buildings over 25 floors is `{r} second_tallest` with `{r} second_num_fl` buildings over 25 floor. `{r} second_tallest` is Financial District-Battery Park City.
 
 
 
