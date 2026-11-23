@@ -54,24 +54,32 @@ get_cbsa_pop <- function(year = 2024) {
   read_csv(cbsa_file, col_types = cols(GEOID = col_character()))
 }
 
+
+
 get_ko <- function(year = 2024) {
-  tract_file <- fs::path(DATA_DIR, "cbsa_pop_ko.csv")
+  ko_file <- fs::path(DATA_DIR, "cbsa_pop_ko.gpkg")   # must end in .gpkg
   
-  if (!fs::file_exists(tract_file)) {
+  if (!fs::file_exists(ko_file)) {
     get_acs(
-      geography="cbsa",
+      geography = "cbsa",
       variables = c(korean = "B02018_005", total = "B01003_001"),
       year      = year,
       survey    = "acs5",
       output    = "wide",
       geometry  = TRUE
-    ) |> write_sf( tract_file )
+    ) |>
+      select(GEOID, NAME, korean = koreanE, total = totalE) |>
+      write_sf(ko_file)
   }
   
-  read_sf(tract_file)
+  read_sf(ko_file)
 }
+
+
+
 ko <- get_ko()
 
+glimpse(ko)
 ```
 
 
@@ -84,7 +92,8 @@ get_nyc_tracts <- function(year = 2024) {
     get_acs(
       geography = "tract",
       state     = "NY",
-      county    = c("005", "047", "061", "081", "085"),  # Bronx, Kings, New York, Queens, Richmond
+      county    = c("005", "047", "061", "081", "085"),  
+      # Bronx, Kings, New York, Queens, Richmond
       variables = c(korean = "B02018_005", total = "B01003_001"),
       year      = year,
       survey    = "acs5",
@@ -109,9 +118,6 @@ Task 3 - acquisition
 load_nyc_nta <- function() {
   
   library(httr2)
-  library(tidyverse)
-  library(fs)
-  library(sf)
   
   # 1. Create 'data/mp03' directory if not already present
   DATA_DIR <- fs::path("data", "mp03")
@@ -368,18 +374,23 @@ Both tracts are quite dense in general, but residential square footage in Washin
 4. 
 ```{r}
 
-korean_metros <- ko |> mutate(across(c(koreanE, totalE), as.numeric)) |>
-  mutate(`Korean Population` = koreanE) |> 
-  mutate(`Total Population` =totalE) |>
-  select(-koreanM, -koreanE, -totalE, -totalM) |> 
+korean_metros <- ko |> mutate(across(c(korean, total), as.numeric)) |>
+  rename(`Korean Population` = korean) |> 
+  rename(`Total Population` =total) |>
+  select(-GEOID) |>
+  st_drop_geometry() |>
   filter(str_detect(NAME, "Metro")) |>
   mutate(`Share of Koreans %` = `Korean Population` / `Total Population`) |> 
-  arrange(desc(`Share of Koreans %`)) |>
-  head(5) 
+  arrange(desc(`Share of Koreans %`)) 
+  
 
-korean_metros |> mutate(`Korean Population` = comma(`Korean Population`), 
-                        `Total Population`  = comma(`Total Population`),
-                        `Share of Koreans %` = percent(`Share of Koreans %`, accuracy=.01)) |> gt()
+ko_metros <- korean_metros |> 
+  mutate(`Korean Population` = comma(`Korean Population`), 
+         `Total Population`  = comma(`Total Population`),
+         `Share of Koreans %` = percent(`Share of Koreans %`, accuracy=.01)) |> 
+  head(5)
+
+ko_metros |> gt()
 ```
 The table above shows the five metro areas that have the largest share of Koreans. The shares was calculated by dividing the 
 estimate of Koreans in the metro area by the total population of the metro area.
@@ -538,6 +549,9 @@ koreans_ny <- get_acs(
   output="wide"
 ) |> mutate(percent_koreans_in_ny = (koE) / totalE)
 percent_ko_ny <- koreans_ny |> pull(percent_koreans_in_ny) |> percent(accuracy=.001)
+
+percent_ko_us
+percent_ko_ny
 ```
 
 The percentage of Koreans that live in the US is `{r} percent_ko_us` and the percentage of Koreans that live in New York state is `{r} percent_ko_ny`. The percentage of Koreans in NY state are only slightly higher than in the US. I was already expecting a low percentage for NY, because the percentage of Koreans in the NY metro was also quite low so it was not a surprise to me. 
@@ -716,15 +730,101 @@ For this prompt I also made a table of the top ten most commercial areas to put 
 
 ## Final Insights and Deliverable
 
-Code related to the final deliverable of the assignment goes here. 
+
+# discussing where they live in NYC
+
+Although I am not Korean, I find the Korean diaspora in the US to be interesting. South Korea was/is one of the Four Asian Tigers, the developed Asian economies of Hong Kong, Singapore, South Korea, and Taiwan [1]. From the 1960s to the 1990s, these regions underwent rapid industrialization and maintained high growth rates [1]. However, the Internation Montary Fund crisis of Throughout the early decades of immigration, the various reasons to immigrate to the US were pretty much the same as the Chinese had: economic reasons, and then later on, political unrest from Japanese invasion and occupation. Below is a table of the top 5 metro areas in the US with the highest share of Korean Americans.
+
+```{r}
+ko_metros |> gt()
+ko_in_hi <- ko_metros |> filter(str_detect(NAME, "Honolulu")) |> pull(`Share of Koreans %`)
+ko_in_la <- ko_metros |> filter(str_detect(NAME, "Los Angeles")) |> pull(`Share of Koreans %`)
+```
+
+With a share of `{r} ko_in_hi` of Korean Americans my hypothesis of why the Honolulu metro area is the metro areas with the largest shares of Korean Americans is that from the late 1800s to the early 1900s, Koreans (and Chinese) immigrants moved to the US and Hawaii to work as laborers on farms, plantations, mines, and railroads [2], and these are the descendants of the original immigrants that moved during the first wave of immigration. That may also explain why the 5th metro area with the most shares of Koreans is Kahului-Wailuku.
+
+During the 1950s, Koreans moved due to the Korean War. Those who moved included "war brides", the wives of US servicemen, and adoptees [2]. The war left many infants and children displaced or orphaned. Multiple Immigration and Nationality Acts passed during the 1950s and 60s also opened up more opportunities for Asian Americans [2]. My hypothesis for the widespread movement of Korean Americans is that because of the increased opportunities for Asian Americans and the subsequent upward mobility allowed for those with the means to move out of ethnic enclaves in urban centers and into suburbs. Korean Americans make up 
+`{r} percent_ko_us` of the US population. 
+
+As the map below shows, while urban centers are more densely populated by Korean Americans, there are still sizable amounts of Koreans residing in suburbs throughout the US. However it seems clear that they prefer certain regions, namely the west coast of California and the Pacific Northwest, Chicago, and the Eastern Seaboard. 
+
+
+```{r}
+
+# US map: Korean population density by metro area (CBSA)
+library(lwgeom)
+ko_density <- ko |>
+  filter(!str_detect(NAME, ", PR"))
+
+ko_density$area_sq_mi     <- as.numeric(st_area(ko_density)) / 2589988
+ko_density$korean_density <- if_else(ko_density$korean > 0,
+                                     ko_density$korean / ko_density$area_sq_mi,
+                                     NA_real_)
+
+ko_density <- tigris::shift_geometry(ko_density)
+ggplot(ko_density) +
+  geom_sf(aes(fill = korean_density), color = "white", linewidth = 0.05) +
+  scale_fill_viridis_c(
+    option = "magma", trans = "log10", direction = -1,
+    na.value = "grey90", name = "Korean residents\nper sq mile"
+    #breaks   = c(10, 100, 1000, 10000)
+    #labels   = scales::label_comma()
+  ) +
+  labs(
+    title    = "Korean-American Population Density by US Metro Area",
+    subtitle = "Metropolitan and micropolitan areas only; white space is outside any CBSA",
+    caption  = "Source: American Community Survey 2020-2024"
+  ) +
+  theme_void()
+
+```
+
+
+Of these regions, I want to discuss more about New York City because despite having a dedicated Koreatown in the middle of Manhattan and smaller enclaves throughout the metro area, including Murray Hill in Queens, the share of Koreans in NY is actually quite low compared to Los Angeles. The share of Koreans in NY is `{r} percent_ko_ny` while LA has a share of `{r} ko_in_la`. I find this so interesting because LA also has a dedicated Koreatown but it's much less exciting and suffers from suburban sprawl. 
+
+The map below of Korean American population density in New York highlights the compactness of the Korean population in NYC and the areas they tend to live in. Unsurprisingly Flushing and Murray Hill are two of the densest areas. What is interesting is that Koreans seem to live in the more affluent areas, such as Northeastern Queens in Bayside and Auburndale, and North Brooklyn in Brooklyn Heights and Park Slope. There are also areas that are not necessarily affluent but expensive areas, such as Long Island City, Flushing, and most of Manhattan south of West Harlem, besides the usual suspects of healthcare, finance, and tech workers, my hypothesis for this is that Koreans that moved to the US after the Immigration laws were loosened in the 1960s, opened businesses as a way toward economic stability [3][4].
+
+
+
+```{r}
+
+korean_density <- nta_pop_sf |>
+  mutate(
+    area_sq_mi     = as.numeric(st_area(geometry)) / 27878400,
+    korean_density = if_else(korean > 0, korean / area_sq_mi, NA_real_)
+  )
+
+ggplot(korean_density) +
+  geom_sf(aes(fill = korean_density), color = "white", linewidth = 0.1) +
+  scale_fill_viridis_c(
+    option = "magma", trans = "log10", direction=-1,
+    na.value = "grey90", name = "Korean residents\nper sq mile"
+  ) +
+  labs(
+    title    = "Korean-American Population Density by NYC Neighborhood",
+    subtitle = "Grey areas have no Korean residents recorded",
+    caption  = "Source: American Community Survey 2020-2024"
+  ) +
+  theme_void()
+
+```
 
 
 
 
+# Sources
+[1] https://en.wikipedia.org/wiki/Four_Asian_Tigers
+[2] https://en.wikipedia.org/wiki/Korean_Americans#History
+[3] https://www.bbc.com/news/world-us-canada-12888908
+[4] https://www.qc.cuny.edu/academics/aac/korean-small-businesses-in-new-york-city/
+
+
+
+##########
 ::: {.callout-note title="AI Usage Statement" collapse="true"}
 
 Claude was used for most of tasks 1 to 5.
-Claude was used for completing, joining tables, and refining code in task 6. 
+Claude was used for completing, joining tables, and refining code in task 6, and maps in Final Deliverable. 
 Gemini was used for miscellaneous formatting.
 
 :::
