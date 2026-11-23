@@ -13,8 +13,7 @@ execute:
 
 ## Introduction
 
-A suitable introduction goes here. In this mini-project, I intend to demonstrate
-my skills at Data Import/API Usage/File Parsing in an analysis of Census Data/Migration Flows data.
+In this mini-project, I intend to demonstrate my skills of data importing, API usage, and file parsing in an analysis of US Census data. For this analysis, I am exploring patterns of population density within the US as well as in New York City, with a slight focus on Korean Americans and ethnic enclaves. In addition to population density, I am also providing a quick overview of the distribution of ancestries in San Jose, CA which eventually somewhat ties in with my final analysis of where Korean Americans live, both in the US and in New York. For my final analysis I provide a little historical background as to why Korean Americans live in certain areas and how they got there, and small tidbits of personal anecdotes.
 
 ## Data Acquisition and Preparation
 
@@ -417,6 +416,10 @@ The table above shows the five metro areas that have the largest share of Korean
 I was suspicious to not see the NY metro area in the top 5, as I thought I would have to filter out NY, so I increased the head amount to 25 and while the population of Koreans in NY metro was the second highest (after Los Angeles), the share of Koreans was too low to have made it onto the top 5 metros table.
 
 
+
+
+
+
 5. 
 ```{r}
 
@@ -443,9 +446,9 @@ sjc <- get_acs(
 sjc |> mutate(estimate = comma(estimate)) |> gt()
 ```
 
-The table above shows the distribution of ancestries in San Jose, California. I chose San Jose because as a San Francisco native, I feel most comfortable and qualified to make observations of the different ancestries that make up the Bay Area. The ACS data seems accurate. White, Asian, and Hispanic are definitely the largest groups in the bay. 
+The table above shows the distribution of ancestries in San Jose, California. I chose San Jose because as a San Francisco native, I feel most qualified to make observations of the different ancestries that make up the Bay Area, and I have visited relatives that live in and around San Jose many times. The ACS data seems accurate: White, Asian, and Hispanic are definitely the largest groups in the Bay. 
 
-Since the Bay Area is so large and there are so many different ethnicities, I wanted to further breakdown the Asian American group, as I am more familiar with the Asian community and because the tech industry in the bay attracts Asians born in the US as well as those born overseas.
+Since the Bay Area is so large and there are so many different ethnicities, I wanted to further breakdown the Asian American group, as I am more familiar with the Asian community and because the tech industry in the Bay attracts Asians born in the US as well as those born overseas.
 
 ```{r}
 
@@ -468,33 +471,14 @@ sjc_breakdown <- get_acs(
 
 sjc_breakdown |> arrange(desc(estimate)) |> mutate(estimate = comma(estimate)) |> gt()
 ```
-The original variables I used for Filipinos and Vietnamese were obviously wrong as the amount of Vietnamese and Filipinos were much too low so I had to do a few quick searches and I finally found the correct variables:
-Filipino    = "B02015_012",
-Vietnamese  = "B02015_019"
 
-As the table shows, the Vietnamese population in SJ is in the six digits. If I remember correctly, the Vietnamese population in SJ is the highest in the country. The Filipino population is also quite high, but not the highest in the country or even in California. The crown for that goes to Daly City, CA, a suburban town just south of San Francisco.
+As the table above shows, the Vietnamese population in SJ is higher than most other Asian populations. If I remember correctly, the Vietnamese population in SJ is the highest in the country. 
+Out of curiosity, I wanted to map out the ancestry of San Jose residents. 
 
-I was surprised to see Taiwanese was so much lower compared to the other groups. I made another quick search and found that most Taiwanese Bay Area residents live in Fremont and Cupertino.
-
-
-
-I wanted to map out the ancestry of San Jose residents. 
 The map below shows the largest population groups by census tract in San Jose. 
 
 ```{r}
 # Q 5 continued; map of largest population groups in San Jose, CA
-
-ggplot(sjc, aes(x = reorder(variable, estimate), y = estimate)) +
-  geom_col() +
-  coord_flip() +
-  scale_y_continuous(labels = scales::label_comma()) +
-  labs(
-    title = "Population of San Jose by Group",
-    x = NULL, y = "Residents",
-    caption = "Source: ACS 2020-2024 5-year estimates"
-  ) +
-  theme_minimal()
-
 vars <- c(
   Hispanic = "B03002_012",
   White = "B03002_003",
@@ -539,11 +523,13 @@ ggplot(sj_tracts) +
   theme_void()
 ```
 
-The results seem accurate as, again, these three groups are the largest racial groups in the Bay Area, particularly the South Bay (which includes San Jose, Santa Clara, and Sunnyvale), the Peninsula (which is the strip of land that connects the South Bay to San Francisco), and San Francisco.
+The results seem accurate as, again, these three groups are the largest racial groups in the South Bay (which includes San Jose).
 
-The large green patch in the north that's just under the large orange patch represents Asian Americans. 
-This patch I know for sure is accurate because I have relatives that live in a small town just northeast of the green patch called Milpitas that's really only well known for its landfill and its large strip malls filled mostly with Chinese and Vietnamese restaurants and supermarkets.
-Another Asian majority tract is the one that's on the far west side. This tract borders another small town that I also have relatives in called Cupertino, which is famously the headquarter of Apple. A quick search confirms that these areas do indeed have an Asian residence majority of at least 70%.
+The large green patch shows there is a large Asian American population in the area and I know for sure this is accurate as I have relatives that live in a small town just outside of the green patch called Milpitas, a town mostly made up of detached single family homes and strip malls occupied by Chinese and Vietnamese restaurants and supermarkets.
+
+Another Asian majority tract I also have relatives in is the one that's on the far west side. They used to live in another small town that borders the green tract called Cupertino, which is famously the headquarter of Apple. 
+
+A quick search confirms that these both Milpitas and Cupertino do indeed have an Asian residence majority of at least 70%, while the two green tracts within San Jose are around 45-55% Asian majority. It's interesting to see that the suburban town just outside the city of San Jose have larger Asian population than within the city itself. 
 
 
 6. 
@@ -621,10 +607,24 @@ ggplot(plot_data, aes(x = total, y = unitsres)) +
   labs(x = "Tract population", y = "Residential units")
 
 
+```
+Looking at both plots, it seems that there is a rather strong positive linear relationship between both Residential Units and Tract population, and residential square footage and tract population, since both R values are just over 0.7. Of course there are outliers that could possibly skew the data. 
+
+```{r}
+area_by_pop_outlierpop <- tract_density |> filter(total > 15000) |> pull(total)
+area_by_pop_outlierresarea <- tract_density |> filter(total > 15000) |> pull(resarea)
+area_by_pop_outlierres_nta <- tract_density |> filter(total > 15000) |> pull(NTA2020)
+area_by_pop_outlierpop2 <- tract_density |> filter(resarea > 10000000) |> pull(total)
+area_by_pop_outlierresarea2 <- tract_density |> filter(resarea > 10000000) |> pull(resarea)
+area_by_pop_outlierres_nta2 <- tract_density |> filter(total > 15000) |> pull(NTA2020)
+
+
+over9000_resunits <- tract_density |> filter(unitsres > 9000)
 
 ```
-Looking at both plots, it seems that there is a rather strong linear relationship between both Residential Units and Tract population, and residential square footage and tract population, since both R values are just over 0.7. 
-Of course there are outliers that could possibly skew the data. The plot of residential floor area by tract population has one significant outlier
+
+The plot of residential floor area by tract population has two visible outliers. One tract has over 10 million square feet of residential area with a tract population of a little over 5,000. The tract for that outlier is `{r} area_by_pop_outlierres_nta2`, which covers Pelham Bay–Country Club–City Island. Another possible outlier is a tract with over `{r} area_by_pop_outlierpop` population and a residential area of `{r} area_by_pop_outlierresarea`. The NTA of this tract is `{r} area_by_pop_outlierres_nta`, which is Stuytown-PCV. So the Pelham Bay tract is among the least dense tracts in the city while the Stuytown tract is one of the densest, if not, THE densest. These two tracts show up again in the other plot. 
+Overall, both plots look quite similar to each other, with similar possible outlier tracts. 
 
 
 
@@ -816,7 +816,9 @@ ggplot(ko_density) +
 
 Of these regions, I want to discuss more about New York City because despite having a dedicated Koreatown in the middle of Manhattan and smaller enclaves throughout the metro area, including Murray Hill in Queens, the share of Koreans in NY is actually quite low compared to Los Angeles. The share of Koreans in NY is `{r} percent_ko_ny` while LA has a share of `{r} ko_in_la`. I find this so interesting because LA also has a dedicated Koreatown but it's much less exciting and suffers from suburban sprawl. 
 
-The map below of Korean American population density in New York highlights the compactness of the Korean population in NYC and the areas they tend to live in. Unsurprisingly Flushing and Murray Hill are two of the densest areas. What is interesting is that Koreans seem to live in the more affluent areas, such as Northeastern Queens in Bayside and Auburndale, and North Brooklyn in Brooklyn Heights and Park Slope. There are also areas that are not necessarily affluent but expensive areas, such as Long Island City, Flushing, and most of Manhattan south of West Harlem, besides the usual suspects of healthcare, finance, and tech workers, my hypothesis for this is that Koreans that moved to the US after the Immigration laws were loosened in the 1960s, opened businesses as a way toward economic stability [3][4].
+The map below of Korean American population density in New York highlights the compactness of the Korean population in NYC and the areas they tend to live in. Unsurprisingly Flushing and Murray Hill are two of the densest areas. What is interesting is that Koreans seem to live in the more affluent areas, such as Northeastern Queens in Bayside and Auburndale, and North Brooklyn in Brooklyn Heights and Park Slope. There are also areas that are not necessarily affluent but expensive areas, such as Long Island City, Flushing, and most of Manhattan south of West Harlem, besides the usual suspects of healthcare, finance, and tech workers, my hypothesis for this is that Koreans that moved to the US after the Immigration laws were loosened in the 1960s, opened businesses as a way toward economic stability [3][4]. 
+
+This kind of ties in with my analysis of the Asian American population in San Jose: that the suburbs seem to attract or appeal to Asians. It could also be that the suburbs have more Asians because most people move out to the suburbs when they have a growing family. Or maybe, in order to afford to move out of the city and into a nicer, more expensive area, relatives within the same family buy and live in the same home, which is actually what my parents and their sibling (my aunts and uncle) did in San Francisco back in the 1990s.
 
 
 
