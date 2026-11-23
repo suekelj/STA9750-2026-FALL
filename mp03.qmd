@@ -267,6 +267,34 @@ load_nyc_pluto <- function(page_size = 50000) {
 
 pluto <- load_nyc_pluto()
 
+
+
+
+
+
+
+nta_names <- load_nyc_nta() |>
+  st_drop_geometry() |>
+  select(NTA2020, NTAName)
+
+
+# Lookup: tract GEOID -> NTA (from Task 4)
+tract_nta_lookup <- tract_to_nta |>
+  st_drop_geometry() |>
+  select(GEOID, NTA2020)
+
+# Add GEOID and NTA2020 to every PLUTO lot, once
+pluto <- pluto |>
+  mutate(
+    county_fips = case_match(
+      str_sub(bct2020, 1, 1),
+      "1" ~ "061", "2" ~ "005", "3" ~ "047", "4" ~ "081", "5" ~ "085"
+    ),
+    GEOID = paste0("36", county_fips, str_sub(bct2020, 2, 7))
+  ) |>
+  select(-county_fips) |>
+  left_join(tract_nta_lookup, by = "GEOID")
+
 ```
 
 
@@ -302,6 +330,17 @@ res_units |> slice_max(total_resunits)
 
 ```
 
+```{r}
+res_units <- pluto |>
+  select(borough, bct2020, unitsres, GEOID) |>
+  inner_join(tract_nta_lookup, join_by(GEOID==GEOID)) |>
+  group_by(NTA2020) |>
+  summarize(total_resunits = sum(unitsres, na.rm = TRUE)) |>
+  left_join(nta_names, by = "NTA2020")
+
+res_units |> slice_max(total_resunits)
+
+```
 
 3. 
 ```{r}
@@ -312,24 +351,8 @@ res_units |> slice_max(total_resunits)
 # population per residential unit?
 res_minimum <- 100
 
-pluto_tracts <- pluto |>
-  filter(!is.na(bct2020)) |>
-  mutate(
-    county_fips = case_match(
-      str_sub(bct2020, 1, 1),
-      "1" ~ "061",   # Manhattan (New York County)
-      "2" ~ "005",   # Bronx
-      "3" ~ "047",   # Brooklyn (Kings)
-      "4" ~ "081",   # Queens
-      "5" ~ "085"    # Staten Island (Richmond)
-    ),
-    GEOID = paste0("36", county_fips, str_sub(bct2020, 2, 7))
-  ) |>
-  group_by(GEOID)
-
-
 tract_housing <- nyc_tracts |>
-  left_join(pluto_tracts, by = "GEOID")
+  left_join(pluto, by = "GEOID")
 #tract_housing
 
 tract_density <- tract_housing |>
@@ -392,8 +415,7 @@ ko_metros <- korean_metros |>
 
 ko_metros |> gt()
 ```
-The table above shows the five metro areas that have the largest share of Koreans. The shares was calculated by dividing the 
-estimate of Koreans in the metro area by the total population of the metro area.
+The table above shows the five metro areas that have the largest share of Koreans. The shares was calculated by dividing the estimate of Koreans in the metro area by the total population of the metro area.
 I was suspicious to not see the NY metro area in the top 5, as I thought I would have to filter out NY, so I increased the head amount to 25 and while the population of Koreans in NY metro was the second highest (after Los Angeles), the share of Koreans was too low to have made it onto the top 5 metros table.
 
 
@@ -562,19 +584,6 @@ The percentage of Koreans that live in the US is `{r} percent_ko_us` and the per
 ```{r}
 
 pluto_tracts <- pluto |>
-  filter(!is.na(bct2020)) |>
-  mutate(
-    county_fips = case_match(
-      str_sub(bct2020, 1, 1),
-      "1" ~ "061",   # Manhattan (New York County)
-      "2" ~ "005",   # Bronx
-      "3" ~ "047",   # Brooklyn (Kings)
-      "4" ~ "081",   # Queens
-      "5" ~ "085"    # Staten Island (Richmond)
-    ),
-    GEOID = paste0("36", county_fips, str_sub(bct2020, 2, 7))
-  ) |>
-  group_by(GEOID) |>
   summarize(
     across(c(unitsres, unitstotal, resarea, comarea, officearea, bldgarea),
            \(x) sum(x, na.rm = TRUE)),
@@ -618,10 +627,20 @@ pluto |> select(borough, bct2020, numfloors) |>
   summarize(total = n()) |>
   arrange(desc(total)) |> head(10)
 
-    
 ```    
 
+```{r} 
+# 8 test
 
+
+# Tall buildings by NTA
+tall_building <- 25
+pluto |>
+  filter(numfloors > tall_building) |>
+  count(NTA2020, sort = TRUE) |>
+  head(10)
+
+```
 
 
 
@@ -687,28 +706,21 @@ At first, I thought I would see Flushing on the map, but thinking about it some 
 
 10.
 ```{r}
-pluto |> drop_na() |> mutate(total_com_area = comarea + officearea+retailarea) |> 
-  filter(total_com_area > resarea & resarea > 0) |>
+# Lot-level: lots where commercial space exceeds residential space
+pluto |>
+  mutate(total_com_area = comarea + officearea + retailarea) |>
+  filter(total_com_area > resarea, resarea > 0) |>
   select(-landuse, -lotarea, -bldgarea, -zonedist1, -numbldgs, -numfloors)
 
-
+# Tract-level totals (GEOID is already in pluto)
 pluto_tracts <- pluto |>
-  filter(!is.na(bct2020)) |>
-  mutate(
-    county_fips = case_match(
-      str_sub(bct2020, 1, 1),
-      "1" ~ "061",   # Manhattan (New York County)
-      "2" ~ "005",   # Bronx
-      "3" ~ "047",   # Brooklyn (Kings)
-      "4" ~ "081",   # Queens
-      "5" ~ "085"    # Staten Island (Richmond)
-    ),
-    GEOID = paste0("36", county_fips, str_sub(bct2020, 2, 7))
-  ) |>
+  filter(!is.na(GEOID)) |>
   group_by(GEOID) |>
   summarize(
     across(c(unitsres, unitstotal, resarea, comarea, officearea, bldgarea),
-           \(x) sum(x, na.rm = TRUE)) )
+           \(x) sum(x, na.rm = TRUE))
+  )
+
 tract_housing <- nyc_tracts |>
   left_join(pluto_tracts, by = "GEOID")
 
@@ -717,6 +729,7 @@ nyers_in_com_areas <- tract_housing |> drop_na() |>
   filter(resarea > 0 & total_com_area > resarea) |> 
   summarize(sum(total)) |> pull(`sum(total)`) |> comma()
 nyers_in_com_areas 
+
 
 ```
 The number of New Yorkers that live in "primarily commercial" areas is `{r} nyers_in_com_areas`. In my opinion I think this number seems realistic. After a quick search of how many residents live in Times Square (around 6,000) and the surrounding area including Theatre District is double that amount.
@@ -731,7 +744,6 @@ For this prompt I also made a table of the top ten most commercial areas to put 
 ## Final Insights and Deliverable
 
 
-# discussing where they live in NYC
 
 Although I am not Korean, I find the Korean diaspora in the US to be interesting. South Korea was/is one of the Four Asian Tigers, the developed Asian economies of Hong Kong, Singapore, South Korea, and Taiwan [1]. From the 1960s to the 1990s, these regions underwent rapid industrialization and maintained high growth rates [1]. However, the Internation Montary Fund crisis of Throughout the early decades of immigration, the various reasons to immigrate to the US were pretty much the same as the Chinese had: economic reasons, and then later on, political unrest from Japanese invasion and occupation. Below is a table of the top 5 metro areas in the US with the highest share of Korean Americans.
 
@@ -814,8 +826,11 @@ ggplot(korean_density) +
 
 # Sources
 [1] https://en.wikipedia.org/wiki/Four_Asian_Tigers
+
 [2] https://en.wikipedia.org/wiki/Korean_Americans#History
+
 [3] https://www.bbc.com/news/world-us-canada-12888908
+
 [4] https://www.qc.cuny.edu/academics/aac/korean-small-businesses-in-new-york-city/
 
 
@@ -824,7 +839,7 @@ ggplot(korean_density) +
 ::: {.callout-note title="AI Usage Statement" collapse="true"}
 
 Claude was used for most of tasks 1 to 5.
-Claude was used for completing, joining tables, and refining code in task 6, and maps in Final Deliverable. 
+Claude was used for completing prompts, joining tables, and refining code in the prompts in task 6, and the maps in Final Deliverable. 
 Gemini was used for miscellaneous formatting.
 
 :::
