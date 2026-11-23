@@ -611,13 +611,12 @@ ggplot(plot_data, aes(x = total, y = unitsres)) +
 Looking at both plots, it seems that there is a rather strong positive linear relationship between both Residential Units and Tract population, and residential square footage and tract population, since both R values are just over 0.7. Of course there are outliers that could possibly skew the data. 
 
 ```{r}
-area_by_pop_outlierpop <- tract_density |> filter(total > 15000) |> pull(total)
-area_by_pop_outlierresarea <- tract_density |> filter(total > 15000) |> pull(resarea)
+area_by_pop_outlierpop <- tract_density |> filter(total > 15000) |> pull(total) |> comma()
+area_by_pop_outlierresarea <- tract_density |> filter(total > 15000) |> pull(resarea) |> comma()
 area_by_pop_outlierres_nta <- tract_density |> filter(total > 15000) |> pull(NTA2020)
-area_by_pop_outlierpop2 <- tract_density |> filter(resarea > 10000000) |> pull(total)
-area_by_pop_outlierresarea2 <- tract_density |> filter(resarea > 10000000) |> pull(resarea)
+area_by_pop_outlierpop2 <- tract_density |> filter(resarea > 10000000) |> pull(total) |> comma()
+area_by_pop_outlierresarea2 <- tract_density |> filter(resarea > 10000000) |> pull(resarea) |> comma()
 area_by_pop_outlierres_nta2 <- tract_density |> filter(total > 15000) |> pull(NTA2020)
-
 
 over9000_resunits <- tract_density |> filter(unitsres > 9000)
 
@@ -864,7 +863,9 @@ ggplot(korean_density) +
 
 Claude was used for most of tasks 1 to 5.
 Claude was used for completing prompts, joining tables, and refining code in the prompts in task 6, and the maps in Final Deliverable. 
-Gemini was used for miscellaneous formatting.
+Gemini was used for miscellaneous formatting and historical context/references.
+
+
 
 :::
 
